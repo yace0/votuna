@@ -1,15 +1,17 @@
 """User settings schemas"""
 from datetime import datetime
+from typing import Literal
+
 from pydantic import BaseModel
 
 
 class UserSettingsBase(BaseModel):
-    theme: str = "system"
+    theme: Literal["system", "light", "dark"] = "system"
     receive_emails: bool = True
 
 
 class UserSettingsUpdate(BaseModel):
-    theme: str | None = None
+    theme: Literal["system", "light", "dark"] | None = None
     receive_emails: bool | None = None
 
 

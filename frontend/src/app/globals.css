@@ -9,12 +9,32 @@
   --votuna-accent: 234 88 12;
   --votuna-accent-soft: 255 237 213;
   --votuna-shadow: 15 23 42;
+  color-scheme: light;
+}
+
+[data-theme='dark'] {
+  --votuna-ink: 228 228 231;
+  --votuna-paper: 24 24 27;
+  --votuna-sand: 39 39 42;
+  --votuna-accent: 249 115 22;
+  --votuna-accent-soft: 113 63 18;
+  --votuna-shadow: 9 9 11;
+  color-scheme: dark;
 }
 
 body {
   color: rgb(var(--votuna-ink));
-  background: radial-gradient(circle at top, rgba(250, 248, 244, 1), rgba(244, 236, 224, 1));
+  background: radial-gradient(circle at top, rgb(var(--votuna-paper)), rgb(var(--votuna-sand)));
   min-height: 100vh;
+}
+
+/* Headless UI listbox (Tremor Select) overrides */
+div[role='listbox'] {
+  background-color: rgb(var(--votuna-paper));
+}
+
+div[role='option'] {
+  cursor: pointer;
 }
 
 .fade-up {

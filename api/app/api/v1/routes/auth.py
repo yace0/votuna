@@ -46,15 +46,9 @@ async def callback_provider(
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc))
     provider_config = get_provider_config(provider)
-    verify_params: dict[str, Any] | None = None
-    if provider is AuthProvider.soundcloud:
-        verify_params = {
-            "client_id": provider_config.client_id,
-            "client_secret": provider_config.client_secret,
-        }
     try:
         async with sso:
-            openid: OpenIDUserProtocol = await sso.verify_and_process(request, params=verify_params)
+            openid: OpenIDUserProtocol = await sso.verify_and_process(request)
     except Exception as exc:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc))
     provider_user_id = get_openid_value(openid, *provider_config.id_keys)

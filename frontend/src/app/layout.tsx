@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { Space_Grotesk } from 'next/font/google'
 import Navbar from '../components/Navbar'
+import ThemeManager from '../components/ThemeManager'
 import './globals.css'
 
 const spaceGrotesk = Space_Grotesk({
@@ -20,9 +21,31 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function () {
+  try {
+    var stored = localStorage.getItem('votuna-theme');
+    var theme = stored === 'light' || stored === 'dark' ? stored : 'system';
+    var resolved = theme === 'system'
+      ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+      : theme;
+    document.documentElement.dataset.theme = resolved;
+    if (resolved === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  } catch (e) {}
+})();`,
+          }}
+        />
+      </head>
       <body className={`${spaceGrotesk.className} antialiased`}>
         <div className="min-h-screen">
+          <ThemeManager />
           <Navbar />
           {children}
         </div>

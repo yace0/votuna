@@ -108,7 +108,7 @@ export default function Navbar() {
   }, [loadUser])
 
   return (
-    <nav className="sticky top-0 z-40 border-b border-black/5 bg-[rgba(250,248,244,0.9)] backdrop-blur">
+    <nav className="sticky top-0 z-40 border-b border-[color:rgb(var(--votuna-ink)/0.08)] bg-[rgba(var(--votuna-paper),0.9)] backdrop-blur">
       <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-4">
         <Link href="/" className="flex items-center gap-3 text-lg font-semibold tracking-tight">
           <span className="flex h-9 w-9 items-center justify-center rounded-2xl bg-[rgb(var(--votuna-accent))] text-white shadow-sm shadow-orange-500/40">
@@ -120,28 +120,30 @@ export default function Navbar() {
         <div className="flex items-center gap-3">
           {user ? (
             <Menu as="div" className="relative">
-              <Menu.Button className="flex items-center gap-2 rounded-full border border-black/10 bg-white/70 px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:shadow-md">
+              <Menu.Button className="flex items-center gap-2 rounded-full border border-[color:rgb(var(--votuna-ink)/0.1)] bg-[rgba(var(--votuna-paper),0.7)] px-4 py-2 text-sm font-medium text-[color:rgb(var(--votuna-ink)/0.7)] shadow-sm transition hover:shadow-md">
                 <span className="relative flex h-8 w-8 items-center justify-center">
-                  <span className="flex h-full w-full items-center justify-center overflow-hidden rounded-full border border-black/10 bg-white">
+                  <span className="flex h-full w-full items-center justify-center overflow-hidden rounded-full border border-[color:rgb(var(--votuna-ink)/0.1)] bg-[rgb(var(--votuna-paper))]">
                     {avatarSrc ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={avatarSrc} alt={displayName} className="h-full w-full object-cover" />
                     ) : (
-                      <span className="text-xs font-semibold text-slate-600">{getInitials(user)}</span>
+                      <span className="text-xs font-semibold text-[color:rgb(var(--votuna-ink)/0.7)]">
+                        {getInitials(user)}
+                      </span>
                     )}
                   </span>
-                  <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-white bg-emerald-500" />
+                  <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-[rgb(var(--votuna-paper))] bg-emerald-500" />
                 </span>
                 <span className="max-w-[160px] truncate">{displayName}</span>
-                <span className="text-xs text-slate-400">▾</span>
+                <span className="text-xs text-[color:rgb(var(--votuna-ink)/0.4)]">▾</span>
               </Menu.Button>
-              <Menu.Items className="absolute right-0 mt-2 w-52 rounded-2xl border border-black/5 bg-white/95 p-2 text-sm text-slate-600 shadow-xl shadow-black/5 backdrop-blur">
+              <Menu.Items className="absolute right-0 z-50 mt-2 w-52 isolate rounded-2xl border border-[color:rgb(var(--votuna-ink)/0.12)] bg-[rgb(var(--votuna-paper))] p-2 text-sm text-[color:rgb(var(--votuna-ink)/0.7)] opacity-100 shadow-xl shadow-black/10 backdrop-blur-0">
                 <Menu.Item>
                   {({ active }) => (
                     <Link
                       href="/profile"
-                      className={`block rounded-xl px-3 py-2 transition ${
-                        active ? 'bg-[rgb(var(--votuna-accent-soft))] text-slate-900' : ''
+                      className={`block rounded-xl px-3 py-2 transition cursor-pointer ${
+                        active ? 'bg-[rgb(var(--votuna-accent-soft))] text-[rgb(var(--votuna-ink))]' : ''
                       }`}
                     >
                       Profile
@@ -152,8 +154,8 @@ export default function Navbar() {
                   {({ active }) => (
                     <button
                       onClick={handleLogout}
-                      className={`mt-1 flex w-full items-center rounded-xl px-3 py-2 text-left transition ${
-                        active ? 'bg-red-50 text-red-600' : 'text-slate-600'
+                      className={`mt-1 flex w-full items-center rounded-xl px-3 py-2 text-left transition cursor-pointer ${
+                        active ? 'bg-red-50 text-red-600' : 'text-[color:rgb(var(--votuna-ink)/0.7)]'
                       }`}
                     >
                       Log out
@@ -165,7 +167,7 @@ export default function Navbar() {
           ) : (
             <Button
               onClick={() => setLoginOpen(true)}
-              className="rounded-full bg-slate-900 px-5 py-2 text-sm font-semibold text-white hover:bg-slate-800"
+              className="rounded-full bg-[rgb(var(--votuna-ink))] px-5 py-2 text-sm font-semibold text-[rgb(var(--votuna-paper))] hover:bg-[color:rgb(var(--votuna-ink)/0.9)]"
             >
               {loading ? 'Checking session...' : 'Log in'}
             </Button>
@@ -174,18 +176,22 @@ export default function Navbar() {
       </div>
 
       <Dialog open={loginOpen} onClose={setLoginOpen}>
-        <DialogPanel className="w-full max-w-md rounded-3xl border border-black/5 bg-white/95 p-6 shadow-2xl shadow-black/10">
+        <DialogPanel className="w-full max-w-md rounded-3xl border border-[color:rgb(var(--votuna-ink)/0.08)] bg-[rgba(var(--votuna-paper),0.95)] p-6 shadow-2xl shadow-black/10">
           <div className="flex items-start justify-between gap-6">
             <div>
-              <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Log in</p>
-              <h2 className="mt-2 text-2xl font-semibold text-slate-900">Pick a provider</h2>
-              <p className="mt-2 text-sm text-slate-600">
+              <p className="text-xs uppercase tracking-[0.2em] text-[color:rgb(var(--votuna-ink)/0.4)]">
+                Log in
+              </p>
+              <h2 className="mt-2 text-2xl font-semibold text-[rgb(var(--votuna-ink))]">
+                Pick a provider
+              </h2>
+              <p className="mt-2 text-sm text-[color:rgb(var(--votuna-ink)/0.7)]">
                 Spotify is coming soon. SoundCloud is ready when you are.
               </p>
             </div>
             <button
               onClick={() => setLoginOpen(false)}
-              className="rounded-full border border-black/10 px-3 py-1 text-xs text-slate-500 transition hover:border-black/20 hover:text-slate-700"
+              className="rounded-full border border-[color:rgb(var(--votuna-ink)/0.1)] px-3 py-1 text-xs text-[color:rgb(var(--votuna-ink)/0.5)] transition hover:border-[color:rgb(var(--votuna-ink)/0.2)] hover:text-[color:rgb(var(--votuna-ink)/0.8)]"
             >
               Close
             </button>
