@@ -49,6 +49,9 @@ type Suggestion = {
   track_artist?: string | null
   track_artwork_url?: string | null
   track_url?: string | null
+  suggested_by_user_id?: number | null
+  voter_display_names?: string[]
+  created_at?: string | null
   status: string
   vote_count: number
 }
@@ -59,6 +62,17 @@ type ProviderTrack = {
   artist?: string | null
   artwork_url?: string | null
   url?: string | null
+  added_at?: string | null
+  suggested_by_user_id?: number | null
+  suggested_by_display_name?: string | null
+}
+
+type PlayerTrack = {
+  key: string
+  title: string
+  artist?: string | null
+  url: string
+  artwork_url?: string | null
 }
 
 type PlaylistMember = {
@@ -76,6 +90,82 @@ const buildAvatarSrc = (member: PlaylistMember) => {
   return `${API_URL}/api/v1/users/${member.user_id}/avatar?v=${version}`
 }
 
+const buildSoundcloudEmbedUrl = (
+  trackUrl: string | null | undefined,
+  autoPlay: boolean = false,
+) => {
+  if (!trackUrl) return ''
+  return `https://w.soundcloud.com/player/?url=${encodeURIComponent(trackUrl)}&auto_play=${autoPlay ? 'true' : 'false'}&hide_related=true&show_comments=false&show_user=true&show_reposts=false&visual=false`
+}
+
+const formatAddedDate = (addedAt: string | null | undefined) => {
+  if (!addedAt) return 'Added date unavailable'
+  const date = new Date(addedAt)
+  if (Number.isNaN(date.getTime())) return 'Added date unavailable'
+  return `Added ${date.toLocaleDateString()}`
+}
+
+function VoteCountWithTooltip({
+  voteCount,
+  voters,
+}: {
+  voteCount: number
+  voters?: string[]
+}) {
+  return (
+    <span className="group relative inline-flex items-center">
+      <span
+        tabIndex={0}
+        className="cursor-help rounded-sm underline decoration-dotted underline-offset-2 outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--votuna-accent))] focus-visible:ring-offset-2 focus-visible:ring-offset-[rgb(var(--votuna-paper))]"
+      >
+        {voteCount} {voteCount === 1 ? 'vote' : 'votes'}
+      </span>
+      <span
+        role="tooltip"
+        className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 w-max min-w-[170px] max-w-[240px] -translate-x-1/2 rounded-xl border border-[color:rgb(var(--votuna-ink)/0.2)] bg-[rgb(var(--votuna-paper))] px-3 py-2 text-left opacity-0 shadow-lg shadow-black/30 transition duration-100 group-hover:opacity-100 group-focus-within:opacity-100"
+      >
+        <span className="block text-[10px] uppercase tracking-[0.18em] text-[color:rgb(var(--votuna-ink)/0.45)]">
+          Voters
+        </span>
+        {voters && voters.length > 0 ? (
+          <ul className="mt-1 space-y-0.5 text-xs text-[color:rgb(var(--votuna-ink)/0.8)]">
+            {voters.map((name, index) => (
+              <li key={`${name}-${index}`}>{name}</li>
+            ))}
+          </ul>
+        ) : (
+          <span className="mt-1 block text-xs text-[color:rgb(var(--votuna-ink)/0.65)]">
+            No votes yet
+          </span>
+        )}
+      </span>
+    </span>
+  )
+}
+
+function TrackArtwork({
+  artworkUrl,
+  title,
+}: {
+  artworkUrl?: string | null
+  title: string
+}) {
+  if (artworkUrl) {
+    return (
+      <img
+        src={artworkUrl}
+        alt={`${title} artwork`}
+        className="h-10 w-10 flex-shrink-0 rounded-lg object-cover"
+      />
+    )
+  }
+  return (
+    <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg border border-[color:rgb(var(--votuna-ink)/0.12)] bg-[rgba(var(--votuna-ink),0.05)] text-[9px] uppercase tracking-[0.14em] text-[color:rgb(var(--votuna-ink)/0.45)]">
+      No Art
+    </div>
+  )
+}
+
 export default function PlaylistDetailPage() {
   const params = useParams()
   const playlistId = Array.isArray(params.id) ? params.id[0] : params.id
@@ -88,13 +178,13 @@ export default function PlaylistDetailPage() {
   const [settingsStatus, setSettingsStatus] = useState('')
 
   const [suggestStatus, setSuggestStatus] = useState('')
-  const [suggestForm, setSuggestForm] = useState({
-    provider_track_id: '',
-    track_title: '',
-    track_artist: '',
-    track_artwork_url: '',
-    track_url: '',
-  })
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState<ProviderTrack[]>([])
+  const [searchStatus, setSearchStatus] = useState('')
+  const [isSearching, setIsSearching] = useState(false)
+  const [linkSuggestionUrl, setLinkSuggestionUrl] = useState('')
+  const [activePlayerTrack, setActivePlayerTrack] = useState<PlayerTrack | null>(null)
+  const [playerNonce, setPlayerNonce] = useState(0)
 
   const currentUserQuery = useQuery({
     queryKey: ['currentUser'],
@@ -157,6 +247,22 @@ export default function PlaylistDetailPage() {
     return Boolean(playlist && currentUser?.id && playlist.owner_user_id === currentUser.id)
   }, [playlist, currentUser])
 
+  const memberNameById = useMemo(() => {
+    const map = new Map<number, string>()
+    for (const member of members) {
+      if (member.display_name) {
+        map.set(member.user_id, member.display_name)
+      }
+    }
+    if (currentUser?.id) {
+      map.set(
+        currentUser.id,
+        currentUser.display_name || currentUser.first_name || currentUser.email || 'You',
+      )
+    }
+    return map
+  }, [members, currentUser])
+
   useEffect(() => {
     if (!settings) return
     setSettingsForm({
@@ -188,28 +294,24 @@ export default function PlaylistDetailPage() {
   })
 
   const suggestMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (payload: {
+      provider_track_id?: string
+      track_title?: string | null
+      track_artist?: string | null
+      track_artwork_url?: string | null
+      track_url?: string | null
+    }) => {
       return apiJson<Suggestion>(`/api/v1/votuna/playlists/${playlistId}/suggestions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         authRequired: true,
-        body: JSON.stringify({
-          provider_track_id: suggestForm.provider_track_id.trim(),
-          track_title: suggestForm.track_title || null,
-          track_artist: suggestForm.track_artist || null,
-          track_artwork_url: suggestForm.track_artwork_url || null,
-          track_url: suggestForm.track_url || null,
-        }),
+        body: JSON.stringify(payload),
       })
     },
-    onSuccess: async () => {
-      setSuggestForm({
-        provider_track_id: '',
-        track_title: '',
-        track_artist: '',
-        track_artwork_url: '',
-        track_url: '',
-      })
+    onSuccess: async (_data, variables) => {
+      if (variables.track_url && !variables.provider_track_id) {
+        setLinkSuggestionUrl('')
+      }
       setSuggestStatus('')
       await queryClient.invalidateQueries({ queryKey: ['votunaSuggestions', playlistId] })
       await queryClient.invalidateQueries({ queryKey: ['votunaMembers', playlistId] })
@@ -240,10 +342,69 @@ export default function PlaylistDetailPage() {
     settingsMutation.mutate(settingsForm)
   }
 
-  const handleSuggest = async () => {
-    if (!playlistId || !suggestForm.provider_track_id.trim()) return
+  const handleSearchTracks = async () => {
+    if (!playlistId || !searchQuery.trim()) return
+    setSearchStatus('')
+    setIsSearching(true)
+    try {
+      const results = await apiJson<ProviderTrack[]>(
+        `/api/v1/votuna/playlists/${playlistId}/tracks/search?q=${encodeURIComponent(searchQuery.trim())}&limit=8`,
+        { authRequired: true },
+      )
+      setSearchResults(results)
+      if (results.length === 0) {
+        setSearchStatus('No tracks found for that search.')
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to search tracks'
+      setSearchStatus(message)
+      setSearchResults([])
+    } finally {
+      setIsSearching(false)
+    }
+  }
+
+  const handleSuggestFromSearch = (track: ProviderTrack) => {
     setSuggestStatus('')
-    suggestMutation.mutate()
+    suggestMutation.mutate({
+      provider_track_id: track.provider_track_id,
+      track_title: track.title,
+      track_artist: track.artist ?? null,
+      track_artwork_url: track.artwork_url ?? null,
+      track_url: track.url ?? null,
+    })
+  }
+
+  const handleSuggestFromLink = () => {
+    if (!playlistId || !linkSuggestionUrl.trim()) return
+    setSuggestStatus('')
+    suggestMutation.mutate({
+      track_url: linkSuggestionUrl.trim(),
+    })
+  }
+
+  const handlePlayTrack = ({
+    key,
+    title,
+    artist,
+    url,
+    artworkUrl,
+  }: {
+    key: string
+    title: string
+    artist?: string | null
+    url?: string | null
+    artworkUrl?: string | null
+  }) => {
+    if (!url) return
+    setActivePlayerTrack({
+      key,
+      title,
+      artist,
+      url,
+      artwork_url: artworkUrl,
+    })
+    setPlayerNonce((prev) => prev + 1)
   }
 
   const handleVote = async (suggestionId: number) => {
@@ -277,7 +438,7 @@ export default function PlaylistDetailPage() {
   }
 
   return (
-    <main className="mx-auto w-full max-w-6xl px-6 py-16">
+    <main className="mx-auto w-full max-w-6xl px-6 py-16 pb-44">
       <div className="fade-up space-y-8">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
@@ -312,56 +473,116 @@ export default function PlaylistDetailPage() {
                 <Card className="rounded-3xl border border-[color:rgb(var(--votuna-ink)/0.08)] bg-[rgba(var(--votuna-paper),0.9)] p-6 shadow-xl shadow-black/5">
                   <div>
                     <p className="text-xs uppercase tracking-[0.25em] text-[color:rgb(var(--votuna-ink)/0.4)]">
-                      Suggest a track
+                      Find and suggest tracks
                     </p>
                     <p className="mt-2 text-sm text-[color:rgb(var(--votuna-ink)/0.7)]">
-                      Enter a SoundCloud track ID (from the URL) and optionally add metadata.
+                      Search by track name, play the track, and suggest it to the vote queue.
                     </p>
                   </div>
-                  <div className="mt-6 grid gap-4 sm:grid-cols-2">
+
+                  <div className="mt-6 flex flex-wrap items-center gap-3">
                     <TextInput
-                      value={suggestForm.provider_track_id}
-                      onValueChange={(value) =>
-                        setSuggestForm((prev) => ({ ...prev, provider_track_id: value }))
-                      }
-                      placeholder="Track ID"
-                    />
-                    <TextInput
-                      value={suggestForm.track_title}
-                      onValueChange={(value) => setSuggestForm((prev) => ({ ...prev, track_title: value }))}
-                      placeholder="Track title (optional)"
-                    />
-                    <TextInput
-                      value={suggestForm.track_artist}
-                      onValueChange={(value) => setSuggestForm((prev) => ({ ...prev, track_artist: value }))}
-                      placeholder="Artist (optional)"
-                    />
-                    <TextInput
-                      value={suggestForm.track_url}
-                      onValueChange={(value) => setSuggestForm((prev) => ({ ...prev, track_url: value }))}
-                      placeholder="Track URL (optional)"
-                    />
-                  </div>
-                  <div className="mt-4 flex flex-wrap items-center gap-3">
-                    <TextInput
-                      value={suggestForm.track_artwork_url}
-                      onValueChange={(value) =>
-                        setSuggestForm((prev) => ({ ...prev, track_artwork_url: value }))
-                      }
-                      placeholder="Artwork URL (optional)"
+                      value={searchQuery}
+                      onValueChange={setSearchQuery}
+                      placeholder="Search SoundCloud tracks"
                       className="flex-1"
                     />
                     <Button
-                      onClick={handleSuggest}
-                      disabled={suggestMutation.isPending}
+                      onClick={handleSearchTracks}
+                      disabled={isSearching || !searchQuery.trim()}
                       className="rounded-full bg-[rgb(var(--votuna-ink))] text-[rgb(var(--votuna-paper))] hover:bg-[color:rgb(var(--votuna-ink)/0.9)]"
                     >
-                      {suggestMutation.isPending ? 'Adding...' : 'Suggest'}
+                      {isSearching ? 'Searching...' : 'Search'}
                     </Button>
                   </div>
-                  {suggestStatus ? (
-                    <p className="mt-3 text-xs text-rose-500">{suggestStatus}</p>
+
+                  {searchStatus ? <p className="mt-3 text-xs text-rose-500">{searchStatus}</p> : null}
+
+                  {searchResults.length > 0 ? (
+                    <div className="mt-4 space-y-3">
+                      {searchResults.map((track) => {
+                        return (
+                          <div
+                            key={track.provider_track_id}
+                            className="rounded-2xl border border-[color:rgb(var(--votuna-ink)/0.08)] bg-[rgba(var(--votuna-paper),0.8)] p-4"
+                          >
+                            <div className="flex flex-wrap items-center justify-between gap-3">
+                              <div className="flex min-w-0 items-center gap-3">
+                                <TrackArtwork artworkUrl={track.artwork_url} title={track.title} />
+                              <div className="min-w-0">
+                                  {track.url ? (
+                                    <a
+                                      href={track.url}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="block truncate text-sm font-semibold text-[rgb(var(--votuna-ink))] hover:underline"
+                                    >
+                                      {track.title}
+                                    </a>
+                                  ) : (
+                                    <p className="truncate text-sm font-semibold text-[rgb(var(--votuna-ink))]">
+                                      {track.title}
+                                    </p>
+                                  )}
+                                  <p className="mt-1 truncate text-xs text-[color:rgb(var(--votuna-ink)/0.6)]">
+                                    {track.artist || 'Unknown artist'}
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                {track.url ? (
+                                  <Button
+                                    onClick={() =>
+                                      handlePlayTrack({
+                                        key: `search-${track.provider_track_id}`,
+                                        title: track.title,
+                                        artist: track.artist,
+                                        url: track.url,
+                                        artworkUrl: track.artwork_url,
+                                      })
+                                    }
+                                    variant="secondary"
+                                    className="w-24 justify-center rounded-full"
+                                  >
+                                    Play
+                                  </Button>
+                                ) : null}
+                                <Button
+                                  onClick={() => handleSuggestFromSearch(track)}
+                                  disabled={suggestMutation.isPending}
+                                  className="w-24 justify-center rounded-full bg-[rgb(var(--votuna-ink))] text-[rgb(var(--votuna-paper))] hover:bg-[color:rgb(var(--votuna-ink)/0.9)]"
+                                >
+                                  Suggest
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
                   ) : null}
+
+                  <div className="mt-6 border-t border-[color:rgb(var(--votuna-ink)/0.08)] pt-5">
+                    <p className="text-xs uppercase tracking-[0.22em] text-[color:rgb(var(--votuna-ink)/0.45)]">
+                      Suggest directly from link
+                    </p>
+                    <div className="mt-3 flex flex-wrap items-center gap-3">
+                      <TextInput
+                        value={linkSuggestionUrl}
+                        onValueChange={setLinkSuggestionUrl}
+                        placeholder="https://soundcloud.com/artist/track-name"
+                        className="flex-1"
+                      />
+                      <Button
+                        onClick={handleSuggestFromLink}
+                        disabled={suggestMutation.isPending || !linkSuggestionUrl.trim()}
+                        className="rounded-full bg-[rgb(var(--votuna-ink))] text-[rgb(var(--votuna-paper))] hover:bg-[color:rgb(var(--votuna-ink)/0.9)]"
+                      >
+                        {suggestMutation.isPending ? 'Adding...' : 'Suggest from link'}
+                      </Button>
+                    </div>
+                  </div>
+                  {suggestStatus ? <p className="mt-3 text-xs text-rose-500">{suggestStatus}</p> : null}
                 </Card>
 
                 <Card className="rounded-3xl border border-[color:rgb(var(--votuna-ink)/0.08)] bg-[rgba(var(--votuna-paper),0.9)] p-6 shadow-xl shadow-black/5">
@@ -389,24 +610,78 @@ export default function PlaylistDetailPage() {
                       {suggestions.map((suggestion) => (
                         <div
                           key={suggestion.id}
-                          className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-[color:rgb(var(--votuna-ink)/0.08)] bg-[rgba(var(--votuna-paper),0.8)] px-4 py-3"
+                          className="rounded-2xl border border-[color:rgb(var(--votuna-ink)/0.08)] bg-[rgba(var(--votuna-paper),0.8)] px-4 py-3"
                         >
-                          <div>
-                            <p className="text-sm font-semibold text-[rgb(var(--votuna-ink))]">
-                              {suggestion.track_title || 'Untitled track'}
-                            </p>
-                            <p className="mt-1 text-xs text-[color:rgb(var(--votuna-ink)/0.6)]">
-                              {suggestion.track_artist || 'Unknown artist'} - {suggestion.vote_count} votes
-                            </p>
-                          </div>
-                          <div className="flex items-center gap-3">
-                            <Button
-                              onClick={() => handleVote(suggestion.id)}
-                              disabled={voteMutation.isPending}
-                              className="rounded-full bg-[rgb(var(--votuna-ink))] text-[rgb(var(--votuna-paper))] hover:bg-[color:rgb(var(--votuna-ink)/0.9)]"
-                            >
-                              Vote
-                            </Button>
+                          <div className="flex flex-wrap items-start justify-between gap-4">
+                            <div className="flex min-w-0 flex-1 items-center gap-3">
+                              <TrackArtwork
+                                artworkUrl={suggestion.track_artwork_url}
+                                title={suggestion.track_title || 'Untitled track'}
+                              />
+                              <div className="min-w-0">
+                                {suggestion.track_url ? (
+                                  <a
+                                    href={suggestion.track_url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="block truncate text-sm font-semibold text-[rgb(var(--votuna-ink))] hover:underline"
+                                  >
+                                    {suggestion.track_title || 'Untitled track'}
+                                  </a>
+                                ) : (
+                                  <p className="truncate text-sm font-semibold text-[rgb(var(--votuna-ink))]">
+                                    {suggestion.track_title || 'Untitled track'}
+                                  </p>
+                                )}
+                                <p className="mt-1 truncate text-xs text-[color:rgb(var(--votuna-ink)/0.6)]">
+                                  {suggestion.track_artist || 'Unknown artist'} -{' '}
+                                  <VoteCountWithTooltip
+                                    voteCount={suggestion.vote_count}
+                                    voters={suggestion.voter_display_names}
+                                  />
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex w-full items-center justify-between gap-3 text-right sm:w-auto sm:justify-end">
+                              <div className="min-w-0">
+                                <p className="text-xs text-[color:rgb(var(--votuna-ink)/0.55)]">
+                                  {suggestion.suggested_by_user_id
+                                    ? memberNameById.get(suggestion.suggested_by_user_id)
+                                      ? `Suggested by ${memberNameById.get(suggestion.suggested_by_user_id)}`
+                                      : 'Suggested by a former member'
+                                    : 'Suggested outside Votuna'}
+                                </p>
+                                <p className="text-xs text-[color:rgb(var(--votuna-ink)/0.5)] tabular-nums">
+                                  {formatAddedDate(suggestion.created_at)}
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                {suggestion.track_url ? (
+                                  <Button
+                                    onClick={() =>
+                                      handlePlayTrack({
+                                        key: `suggestion-${suggestion.id}`,
+                                        title: suggestion.track_title || 'Untitled track',
+                                        artist: suggestion.track_artist,
+                                        url: suggestion.track_url,
+                                        artworkUrl: suggestion.track_artwork_url,
+                                      })
+                                    }
+                                    variant="secondary"
+                                    className="w-24 justify-center rounded-full"
+                                  >
+                                    Play
+                                  </Button>
+                                ) : null}
+                                <Button
+                                  onClick={() => handleVote(suggestion.id)}
+                                  disabled={voteMutation.isPending}
+                                  className="w-24 justify-center rounded-full bg-[rgb(var(--votuna-ink))] text-[rgb(var(--votuna-paper))] hover:bg-[color:rgb(var(--votuna-ink)/0.9)]"
+                                >
+                                  Vote
+                                </Button>
+                              </div>
+                            </div>
                           </div>
                         </div>
                       ))}
@@ -441,24 +716,73 @@ export default function PlaylistDetailPage() {
                           key={track.provider_track_id}
                           className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-[color:rgb(var(--votuna-ink)/0.08)] bg-[rgba(var(--votuna-paper),0.8)] px-4 py-3"
                         >
-                          <div>
-                            <p className="text-sm font-semibold text-[rgb(var(--votuna-ink))]">
-                              {track.title}
-                            </p>
-                            <p className="mt-1 text-xs text-[color:rgb(var(--votuna-ink)/0.6)]">
-                              {track.artist || 'Unknown artist'}
-                            </p>
+                          <div className="flex w-full flex-wrap items-start justify-between gap-4">
+                            <div className="flex min-w-0 flex-1 items-center gap-3">
+                              <TrackArtwork artworkUrl={track.artwork_url} title={track.title} />
+                              <div className="min-w-0">
+                                {track.url ? (
+                                  <a
+                                    href={track.url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="block truncate text-sm font-semibold text-[rgb(var(--votuna-ink))] hover:underline"
+                                  >
+                                    {track.title}
+                                  </a>
+                                ) : (
+                                  <p className="truncate text-sm font-semibold text-[rgb(var(--votuna-ink))]">
+                                    {track.title}
+                                  </p>
+                                )}
+                                <p className="mt-1 truncate text-xs text-[color:rgb(var(--votuna-ink)/0.6)]">
+                                  {track.artist || 'Unknown artist'}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex w-full items-center justify-between gap-3 text-right sm:w-auto sm:justify-end">
+                              <div className="min-w-0">
+                                <p className="mt-1 text-xs text-[color:rgb(var(--votuna-ink)/0.55)]">
+                                  {track.suggested_by_display_name
+                                    ? `Suggested by ${track.suggested_by_display_name}`
+                                    : track.suggested_by_user_id
+                                      ? 'Suggested by a former member'
+                                      : 'Added outside Votuna'}
+                                </p>
+                                <p className="text-xs text-[color:rgb(var(--votuna-ink)/0.5)] tabular-nums">
+                                  {formatAddedDate(track.added_at)}
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                {track.url ? (
+                                  <Button
+                                    onClick={() =>
+                                      handlePlayTrack({
+                                        key: `track-${track.provider_track_id}`,
+                                        title: track.title,
+                                        artist: track.artist,
+                                        url: track.url,
+                                        artworkUrl: track.artwork_url,
+                                      })
+                                    }
+                                    variant="secondary"
+                                    className="w-24 justify-center rounded-full"
+                                  >
+                                    Play
+                                  </Button>
+                                ) : null}
+                                {track.url ? (
+                                  <a
+                                    href={track.url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="inline-flex w-24 justify-center rounded-full bg-[rgb(var(--votuna-ink))] px-4 py-2 text-xs font-semibold text-[rgb(var(--votuna-paper))] hover:bg-[color:rgb(var(--votuna-ink)/0.9)]"
+                                  >
+                                    Open
+                                  </a>
+                                ) : null}
+                              </div>
+                            </div>
                           </div>
-                          {track.url ? (
-                            <a
-                              href={track.url}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-xs font-semibold text-[rgb(var(--votuna-ink))] hover:underline"
-                            >
-                              Open
-                            </a>
-                          ) : null}
                         </div>
                       ))}
                     </div>
@@ -615,6 +939,56 @@ export default function PlaylistDetailPage() {
           </TabPanels>
         </TabGroup>
       </div>
+      {activePlayerTrack ? (
+        <div className="fixed bottom-4 left-1/2 z-40 w-[min(940px,calc(100%-1.5rem))] -translate-x-1/2">
+          <div className="rounded-2xl border border-[color:rgb(var(--votuna-ink)/0.12)] bg-[rgba(var(--votuna-paper),0.98)] p-3 shadow-2xl shadow-black/25 backdrop-blur-sm">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-3">
+                <TrackArtwork
+                  artworkUrl={activePlayerTrack.artwork_url}
+                  title={activePlayerTrack.title}
+                />
+                <div className="min-w-0">
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-[color:rgb(var(--votuna-ink)/0.45)]">
+                    Now Playing
+                  </p>
+                  <p className="truncate text-sm font-semibold text-[rgb(var(--votuna-ink))]">
+                    {activePlayerTrack.title}
+                  </p>
+                  <p className="truncate text-xs text-[color:rgb(var(--votuna-ink)/0.6)]">
+                    {activePlayerTrack.artist || 'Unknown artist'}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <a
+                  href={activePlayerTrack.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex w-24 justify-center rounded-full border border-[color:rgb(var(--votuna-ink)/0.18)] px-4 py-2 text-xs font-semibold text-[rgb(var(--votuna-ink))] hover:bg-[rgba(var(--votuna-paper),0.7)]"
+                >
+                  Open
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setActivePlayerTrack(null)}
+                  className="inline-flex w-24 justify-center rounded-full bg-[rgb(var(--votuna-ink))] px-4 py-2 text-xs font-semibold text-[rgb(var(--votuna-paper))] hover:bg-[color:rgb(var(--votuna-ink)/0.9)]"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+            <iframe
+              key={`${activePlayerTrack.key}-${playerNonce}`}
+              title={`Now playing ${activePlayerTrack.title}`}
+              src={buildSoundcloudEmbedUrl(activePlayerTrack.url, true)}
+              className="mt-3 h-24 w-full rounded-xl border-0"
+              loading="lazy"
+              allow="autoplay"
+            />
+          </div>
+        </div>
+      ) : null}
     </main>
   )
 }

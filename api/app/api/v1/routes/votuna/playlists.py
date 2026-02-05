@@ -7,6 +7,7 @@ from app.auth.dependencies import get_current_user
 from app.db.session import get_db
 from app.models.user import User
 from app.models.votuna_playlist import VotunaPlaylist
+from app.models.votuna_suggestions import VotunaTrackSuggestion
 from app.schemas.votuna_playlist import (
     ProviderTrackOut,
     VotunaPlaylistCreate,
@@ -197,6 +198,38 @@ async def list_votuna_tracks(
         raise_provider_auth(current_user, owner_id=playlist.owner_user_id)
     except ProviderAPIError as exc:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+
+    track_ids = [track.provider_track_id for track in tracks if track.provider_track_id]
+    suggestion_lookup: dict[str, tuple[int | None, str | None, datetime | None]] = {}
+    if track_ids:
+        suggestion_rows = (
+            db.query(VotunaTrackSuggestion, User)
+            .outerjoin(User, User.id == VotunaTrackSuggestion.suggested_by_user_id)
+            .filter(
+                VotunaTrackSuggestion.playlist_id == playlist_id,
+                VotunaTrackSuggestion.status == "accepted",
+                VotunaTrackSuggestion.provider_track_id.in_(track_ids),
+            )
+            .order_by(VotunaTrackSuggestion.updated_at.desc())
+            .all()
+        )
+        for suggestion, suggested_by_user in suggestion_rows:
+            if suggestion.provider_track_id in suggestion_lookup:
+                continue
+            suggested_by_name = None
+            if suggested_by_user:
+                suggested_by_name = (
+                    suggested_by_user.display_name
+                    or suggested_by_user.first_name
+                    or suggested_by_user.email
+                    or suggested_by_user.provider_user_id
+                )
+            suggestion_lookup[suggestion.provider_track_id] = (
+                suggestion.suggested_by_user_id,
+                suggested_by_name,
+                suggestion.updated_at,
+            )
+
     return [
         ProviderTrackOut(
             provider_track_id=track.provider_track_id,
@@ -204,6 +237,9 @@ async def list_votuna_tracks(
             artist=track.artist,
             artwork_url=track.artwork_url,
             url=track.url,
+            added_at=suggestion_lookup.get(track.provider_track_id, (None, None, None))[2],
+            suggested_by_user_id=suggestion_lookup.get(track.provider_track_id, (None, None, None))[0],
+            suggested_by_display_name=suggestion_lookup.get(track.provider_track_id, (None, None, None))[1],
         )
         for track in tracks
     ]

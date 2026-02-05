@@ -30,6 +30,9 @@ class ProviderTrackOut(BaseModel):
     artist: str | None = None
     artwork_url: str | None = None
     url: str | None = None
+    added_at: datetime | None = None
+    suggested_by_user_id: int | None = None
+    suggested_by_display_name: str | None = None
 
 
 class VotunaPlaylistCreate(BaseModel):

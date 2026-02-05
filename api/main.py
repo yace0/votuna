@@ -25,7 +25,6 @@ async def lifespan(app: FastAPI):
     # Startup
     logger.info("Application starting up")
     logger.info(f"Debug mode: {settings.DEBUG}")
-    logger.info("Database tables should be managed via Alembic migrations")
     yield
     # Shutdown
     logger.info("Application shutting down")

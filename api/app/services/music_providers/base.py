@@ -63,6 +63,14 @@ class MusicProviderClient:
     async def add_tracks(self, provider_playlist_id: str, track_ids: Sequence[str]) -> None:
         raise NotImplementedError
 
+    async def search_tracks(self, query: str, limit: int = 10) -> Sequence[ProviderTrack]:
+        """Search tracks by free-text query."""
+        raise NotImplementedError
+
+    async def resolve_track_url(self, url: str) -> ProviderTrack:
+        """Resolve a provider track URL to canonical track metadata."""
+        raise NotImplementedError
+
     async def track_exists(self, provider_playlist_id: str, track_id: str) -> bool:
         tracks = await self.list_tracks(provider_playlist_id)
         return any(track.provider_track_id == track_id for track in tracks)

@@ -1,5 +1,5 @@
 """SoundCloud provider integration."""
-from typing import Sequence
+from typing import Any, Sequence
 import httpx
 
 from app.config.settings import settings
@@ -38,6 +38,22 @@ class SoundcloudProvider(MusicProviderClient):
                 f"SoundCloud API error ({status_code})",
                 status_code=status_code,
             ) from exc
+
+    def _to_provider_track(self, payload: Any) -> ProviderTrack | None:
+        if not isinstance(payload, dict):
+            return None
+        track_id = payload.get("id")
+        if track_id is None:
+            return None
+        user_payload = payload.get("user")
+        user = user_payload if isinstance(user_payload, dict) else {}
+        return ProviderTrack(
+            provider_track_id=str(track_id),
+            title=payload.get("title") or "Untitled",
+            artist=user.get("username"),
+            artwork_url=payload.get("artwork_url") or user.get("avatar_url"),
+            url=payload.get("permalink_url"),
+        )
 
     async def list_playlists(self) -> Sequence[ProviderPlaylist]:
         async with httpx.AsyncClient(base_url=self.base_url, timeout=15) as client:
@@ -133,19 +149,61 @@ class SoundcloudProvider(MusicProviderClient):
             payload = response.json()
         tracks = []
         for track in payload.get("tracks", []) or []:
-            track_id = track.get("id")
-            if track_id is None:
-                continue
-            tracks.append(
-                ProviderTrack(
-                    provider_track_id=str(track_id),
-                    title=track.get("title") or "Untitled",
-                    artist=(track.get("user") or {}).get("username"),
-                    artwork_url=track.get("artwork_url") or (track.get("user") or {}).get("avatar_url"),
-                    url=track.get("permalink_url"),
-                )
-            )
+            mapped_track = self._to_provider_track(track)
+            if mapped_track:
+                tracks.append(mapped_track)
         return tracks
+
+    async def search_tracks(self, query: str, limit: int = 10) -> Sequence[ProviderTrack]:
+        search_query = query.strip()
+        if not search_query:
+            return []
+        safe_limit = max(1, min(limit, 25))
+        async with httpx.AsyncClient(base_url=self.base_url, timeout=15) as client:
+            response = await client.get(
+                "/tracks",
+                headers=self._headers(),
+                params={
+                    **self._params(),
+                    "q": search_query,
+                    "limit": safe_limit,
+                },
+            )
+            self._raise_for_status(response)
+            payload = response.json()
+        results: list[ProviderTrack] = []
+        if not isinstance(payload, list):
+            return results
+        for item in payload:
+            mapped_track = self._to_provider_track(item)
+            if mapped_track:
+                results.append(mapped_track)
+        return results
+
+    async def resolve_track_url(self, url: str) -> ProviderTrack:
+        track_url = url.strip()
+        if not track_url:
+            raise ProviderAPIError("Track URL is required", status_code=400)
+        async with httpx.AsyncClient(base_url=self.base_url, timeout=15) as client:
+            response = await client.get(
+                "/resolve",
+                headers=self._headers(),
+                params={
+                    **self._params(),
+                    "url": track_url,
+                },
+            )
+            self._raise_for_status(response)
+            payload = response.json()
+        if not isinstance(payload, dict):
+            raise ProviderAPIError("Unable to resolve track URL", status_code=404)
+        kind = payload.get("kind")
+        if kind and kind != "track":
+            raise ProviderAPIError("Resolved URL is not a track", status_code=400)
+        mapped_track = self._to_provider_track(payload)
+        if not mapped_track:
+            raise ProviderAPIError("Unable to resolve track URL", status_code=404)
+        return mapped_track
 
     async def add_tracks(self, provider_playlist_id: str, track_ids: Sequence[str]) -> None:
         if not track_ids:

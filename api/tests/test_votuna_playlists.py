@@ -1,4 +1,5 @@
 from app.crud.votuna_playlist_settings import votuna_playlist_settings_crud
+from app.crud.votuna_track_suggestion import votuna_track_suggestion_crud
 
 
 def test_list_votuna_playlists(auth_client, votuna_playlist):
@@ -103,3 +104,26 @@ def test_list_votuna_tracks(auth_client, votuna_playlist, provider_stub):
     assert response.status_code == 200
     data = response.json()
     assert data[0]["provider_track_id"] == "track-1"
+    assert data[0]["added_at"] is None
+    assert data[0]["suggested_by_display_name"] is None
+
+
+def test_list_votuna_tracks_includes_suggester(auth_client, db_session, votuna_playlist, user, provider_stub):
+    votuna_track_suggestion_crud.create(
+        db_session,
+        {
+            "playlist_id": votuna_playlist.id,
+            "provider_track_id": "track-1",
+            "track_title": "Test Track",
+            "suggested_by_user_id": user.id,
+            "status": "accepted",
+        },
+    )
+
+    response = auth_client.get(f"/api/v1/votuna/playlists/{votuna_playlist.id}/tracks")
+    assert response.status_code == 200
+    data = response.json()
+    assert data[0]["provider_track_id"] == "track-1"
+    assert data[0]["added_at"] is not None
+    assert data[0]["suggested_by_user_id"] == user.id
+    assert data[0]["suggested_by_display_name"] == user.display_name

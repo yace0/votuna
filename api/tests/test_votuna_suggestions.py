@@ -20,11 +20,32 @@ def test_create_and_list_suggestions(auth_client, votuna_playlist, provider_stub
     suggestion = response.json()
     assert suggestion["provider_track_id"] == "track-100"
     assert suggestion["vote_count"] == 1
+    assert len(suggestion["voter_display_names"]) == 1
+    assert suggestion["voter_display_names"][0]
 
     list_response = auth_client.get(f"/api/v1/votuna/playlists/{votuna_playlist.id}/suggestions")
     assert list_response.status_code == 200
     data = list_response.json()
     assert any(item["id"] == suggestion["id"] for item in data)
+
+
+def test_search_tracks_for_suggestions(auth_client, votuna_playlist, provider_stub):
+    response = auth_client.get(
+        f"/api/v1/votuna/playlists/{votuna_playlist.id}/tracks/search",
+        params={"q": "house", "limit": 1},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) == 1
+    assert data[0]["provider_track_id"] == "track-search-1"
+
+
+def test_search_tracks_for_suggestions_requires_member(other_auth_client, votuna_playlist):
+    response = other_auth_client.get(
+        f"/api/v1/votuna/playlists/{votuna_playlist.id}/tracks/search",
+        params={"q": "house"},
+    )
+    assert response.status_code == 403
 
 
 def test_list_suggestions_with_status_filter(auth_client, db_session, votuna_playlist, user):
@@ -59,6 +80,35 @@ def test_list_suggestions_with_status_filter(auth_client, db_session, votuna_pla
     assert accepted.id in ids
     assert pending.id not in ids
     assert all(item["status"] == "accepted" for item in data)
+
+
+def test_create_suggestion_from_track_url_resolves_metadata(auth_client, votuna_playlist, provider_stub):
+    response = auth_client.post(
+        f"/api/v1/votuna/playlists/{votuna_playlist.id}/suggestions",
+        json={"track_url": "https://soundcloud.com/test/resolved-track"},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["provider_track_id"] == "track-resolved-1"
+    assert data["track_title"] == "Resolved Track"
+    assert data["track_artist"] == "Resolved Artist"
+    assert data["track_url"] == "https://soundcloud.com/test/resolved-track"
+
+
+def test_create_suggestion_requires_track_id_or_url(auth_client, votuna_playlist, provider_stub):
+    response = auth_client.post(
+        f"/api/v1/votuna/playlists/{votuna_playlist.id}/suggestions",
+        json={"track_title": "Missing ID"},
+    )
+    assert response.status_code == 400
+
+
+def test_create_suggestion_invalid_track_url_returns_400(auth_client, votuna_playlist, provider_stub):
+    response = auth_client.post(
+        f"/api/v1/votuna/playlists/{votuna_playlist.id}/suggestions",
+        json={"track_url": "https://soundcloud.com/test/not-a-track"},
+    )
+    assert response.status_code == 400
 
 
 def test_duplicate_suggestion_upvotes_existing(
@@ -99,6 +149,7 @@ def test_duplicate_suggestion_upvotes_existing(
     data = response.json()
     assert data["id"] == suggestion.id
     assert data["vote_count"] == 2
+    assert len(data["voter_display_names"]) == 2
 
 
 def test_track_already_in_provider_returns_conflict(

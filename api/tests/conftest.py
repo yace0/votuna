@@ -46,6 +46,29 @@ class DummyProvider:
             url="https://soundcloud.com/test/track-1",
         )
     ]
+    search_tracks_results = [
+        ProviderTrack(
+            provider_track_id="track-search-1",
+            title="Search Result One",
+            artist="Artist One",
+            artwork_url=None,
+            url="https://soundcloud.com/test/search-result-one",
+        ),
+        ProviderTrack(
+            provider_track_id="track-search-2",
+            title="Search Result Two",
+            artist="Artist Two",
+            artwork_url=None,
+            url="https://soundcloud.com/test/search-result-two",
+        ),
+    ]
+    resolved_track = ProviderTrack(
+        provider_track_id="track-resolved-1",
+        title="Resolved Track",
+        artist="Resolved Artist",
+        artwork_url=None,
+        url="https://soundcloud.com/test/resolved-track",
+    )
     track_exists_value = False
 
     def __init__(self, access_token: str):
@@ -76,6 +99,18 @@ class DummyProvider:
 
     async def list_tracks(self, provider_playlist_id: str):
         return self.tracks
+
+    async def search_tracks(self, query: str, limit: int = 10):
+        if not query.strip():
+            return []
+        return self.search_tracks_results[:limit]
+
+    async def resolve_track_url(self, url: str):
+        if "not-a-track" in url:
+            from app.services.music_providers.base import ProviderAPIError
+
+            raise ProviderAPIError("Resolved URL is not a track", status_code=400)
+        return self.resolved_track
 
     async def add_tracks(self, provider_playlist_id: str, track_ids):
         return None

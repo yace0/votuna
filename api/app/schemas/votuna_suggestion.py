@@ -1,10 +1,10 @@
 """Votuna suggestion schemas"""
 from datetime import datetime
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class VotunaTrackSuggestionCreate(BaseModel):
-    provider_track_id: str
+    provider_track_id: str | None = None
     track_title: str | None = None
     track_artist: str | None = None
     track_artwork_url: str | None = None
@@ -22,6 +22,7 @@ class VotunaTrackSuggestionOut(BaseModel):
     suggested_by_user_id: int | None = None
     status: str
     vote_count: int
+    voter_display_names: list[str] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime
 
