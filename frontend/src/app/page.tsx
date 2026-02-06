@@ -126,17 +126,17 @@ export default function Home() {
   })
 
   const providerPlaylists = providerQuery.data ?? []
-  const votunaPlaylists = votunaQuery.data ?? []
   const playlistsLoading = providerQuery.isLoading || votunaQuery.isLoading
 
   const votunaMap = useMemo(() => {
+    const votunaPlaylists = votunaQuery.data ?? []
     return new Map(
       votunaPlaylists.map((playlist) => [
         `${playlist.provider}:${playlist.provider_playlist_id}`,
         playlist,
       ]),
     )
-  }, [votunaPlaylists])
+  }, [votunaQuery.data])
 
   const createMutation = useMutation({
     mutationFn: async () => {

@@ -12,6 +12,7 @@ import {
 } from '@tremor/react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
+import Image from 'next/image'
 import { useParams } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 import { apiJson, apiJsonOrNull, API_URL } from '../../../lib/api'
@@ -152,9 +153,12 @@ function TrackArtwork({
 }) {
   if (artworkUrl) {
     return (
-      <img
+      <Image
         src={artworkUrl}
         alt={`${title} artwork`}
+        width={40}
+        height={40}
+        unoptimized
         className="h-10 w-10 flex-shrink-0 rounded-lg object-cover"
       />
     )
@@ -249,7 +253,7 @@ export default function PlaylistDetailPage() {
 
   const memberNameById = useMemo(() => {
     const map = new Map<number, string>()
-    for (const member of members) {
+    for (const member of membersQuery.data ?? []) {
       if (member.display_name) {
         map.set(member.user_id, member.display_name)
       }
@@ -261,7 +265,7 @@ export default function PlaylistDetailPage() {
       )
     }
     return map
-  }, [members, currentUser])
+  }, [membersQuery.data, currentUser])
 
   useEffect(() => {
     if (!settings) return
@@ -269,7 +273,7 @@ export default function PlaylistDetailPage() {
       required_vote_percent: settings.required_vote_percent,
       auto_add_on_threshold: settings.auto_add_on_threshold,
     })
-  }, [settings?.required_vote_percent, settings?.auto_add_on_threshold])
+  }, [settings])
 
   const settingsMutation = useMutation({
     mutationFn: async (payload: typeof settingsForm) => {
@@ -633,7 +637,7 @@ export default function PlaylistDetailPage() {
                                     {suggestion.track_title || 'Untitled track'}
                                   </p>
                                 )}
-                                <p className="mt-1 truncate text-xs text-[color:rgb(var(--votuna-ink)/0.6)]">
+                                <p className="mt-1 text-xs text-[color:rgb(var(--votuna-ink)/0.6)]">
                                   {suggestion.track_artist || 'Unknown artist'} -{' '}
                                   <VoteCountWithTooltip
                                     voteCount={suggestion.vote_count}
@@ -901,9 +905,12 @@ export default function PlaylistDetailPage() {
                           >
                             <div className="flex items-center gap-3">
                               {avatarSrc ? (
-                                <img
+                                <Image
                                   src={avatarSrc}
                                   alt={member.display_name || 'Collaborator avatar'}
+                                  width={32}
+                                  height={32}
+                                  unoptimized
                                   className="h-8 w-8 rounded-full object-cover"
                                 />
                               ) : (
