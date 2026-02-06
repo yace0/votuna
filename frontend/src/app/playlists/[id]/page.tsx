@@ -2,7 +2,6 @@
 
 import {
   Button,
-  Card,
   Tab,
   TabGroup,
   TabList,
@@ -12,78 +11,26 @@ import {
 } from '@tremor/react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
-import Image from 'next/image'
 import { useParams } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
-import { apiJson, apiJsonOrNull, API_URL } from '../../../lib/api'
-
-type User = {
-  id?: number
-  display_name?: string | null
-  first_name?: string | null
-  email?: string | null
-  avatar_url?: string | null
-}
-
-type PlaylistSettings = {
-  id: number
-  playlist_id: number
-  required_vote_percent: number
-  auto_add_on_threshold: boolean
-}
-
-type VotunaPlaylist = {
-  id: number
-  owner_user_id: number
-  title: string
-  description?: string | null
-  provider: string
-  provider_playlist_id: string
-  is_active: boolean
-  settings?: PlaylistSettings | null
-}
-
-type Suggestion = {
-  id: number
-  provider_track_id: string
-  track_title?: string | null
-  track_artist?: string | null
-  track_artwork_url?: string | null
-  track_url?: string | null
-  suggested_by_user_id?: number | null
-  voter_display_names?: string[]
-  created_at?: string | null
-  status: string
-  vote_count: number
-}
-
-type ProviderTrack = {
-  provider_track_id: string
-  title: string
-  artist?: string | null
-  artwork_url?: string | null
-  url?: string | null
-  added_at?: string | null
-  suggested_by_user_id?: number | null
-  suggested_by_display_name?: string | null
-}
-
-type PlayerTrack = {
-  key: string
-  title: string
-  artist?: string | null
-  url: string
-  artwork_url?: string | null
-}
-
-type PlaylistMember = {
-  user_id: number
-  display_name?: string | null
-  avatar_url?: string | null
-  role: string
-  joined_at: string
-  suggested_count: number
-}
+import NowPlayingDock from '@/components/playlists/NowPlayingDock'
+import TrackArtwork from '@/components/playlists/TrackArtwork'
+import VoteCountWithTooltip from '@/components/playlists/VoteCountWithTooltip'
+import PageShell from '@/components/ui/PageShell'
+import PrimaryButton from '@/components/ui/PrimaryButton'
+import SectionEyebrow from '@/components/ui/SectionEyebrow'
+import SurfaceCard from '@/components/ui/SurfaceCard'
+import UserAvatar from '@/components/ui/UserAvatar'
+import { useCurrentUser } from '@/hooks/useCurrentUser'
+import { apiJson, API_URL } from '@/lib/api'
+import type {
+  PlayerTrack,
+  PlaylistMember,
+  PlaylistSettings,
+  ProviderTrack,
+  Suggestion,
+  VotunaPlaylist,
+} from '@/types/votuna'
 
 const buildAvatarSrc = (member: PlaylistMember) => {
   if (!member.avatar_url) return ''
@@ -91,83 +38,11 @@ const buildAvatarSrc = (member: PlaylistMember) => {
   return `${API_URL}/api/v1/users/${member.user_id}/avatar?v=${version}`
 }
 
-const buildSoundcloudEmbedUrl = (
-  trackUrl: string | null | undefined,
-  autoPlay: boolean = false,
-) => {
-  if (!trackUrl) return ''
-  return `https://w.soundcloud.com/player/?url=${encodeURIComponent(trackUrl)}&auto_play=${autoPlay ? 'true' : 'false'}&hide_related=true&show_comments=false&show_user=true&show_reposts=false&visual=false`
-}
-
 const formatAddedDate = (addedAt: string | null | undefined) => {
   if (!addedAt) return 'Added date unavailable'
   const date = new Date(addedAt)
   if (Number.isNaN(date.getTime())) return 'Added date unavailable'
   return `Added ${date.toLocaleDateString()}`
-}
-
-function VoteCountWithTooltip({
-  voteCount,
-  voters,
-}: {
-  voteCount: number
-  voters?: string[]
-}) {
-  return (
-    <span className="group relative inline-flex items-center">
-      <span
-        tabIndex={0}
-        className="cursor-help rounded-sm underline decoration-dotted underline-offset-2 outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--votuna-accent))] focus-visible:ring-offset-2 focus-visible:ring-offset-[rgb(var(--votuna-paper))]"
-      >
-        {voteCount} {voteCount === 1 ? 'vote' : 'votes'}
-      </span>
-      <span
-        role="tooltip"
-        className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 w-max min-w-[170px] max-w-[240px] -translate-x-1/2 rounded-xl border border-[color:rgb(var(--votuna-ink)/0.2)] bg-[rgb(var(--votuna-paper))] px-3 py-2 text-left opacity-0 shadow-lg shadow-black/30 transition duration-100 group-hover:opacity-100 group-focus-within:opacity-100"
-      >
-        <span className="block text-[10px] uppercase tracking-[0.18em] text-[color:rgb(var(--votuna-ink)/0.45)]">
-          Voters
-        </span>
-        {voters && voters.length > 0 ? (
-          <ul className="mt-1 space-y-0.5 text-xs text-[color:rgb(var(--votuna-ink)/0.8)]">
-            {voters.map((name, index) => (
-              <li key={`${name}-${index}`}>{name}</li>
-            ))}
-          </ul>
-        ) : (
-          <span className="mt-1 block text-xs text-[color:rgb(var(--votuna-ink)/0.65)]">
-            No votes yet
-          </span>
-        )}
-      </span>
-    </span>
-  )
-}
-
-function TrackArtwork({
-  artworkUrl,
-  title,
-}: {
-  artworkUrl?: string | null
-  title: string
-}) {
-  if (artworkUrl) {
-    return (
-      <Image
-        src={artworkUrl}
-        alt={`${title} artwork`}
-        width={40}
-        height={40}
-        unoptimized
-        className="h-10 w-10 flex-shrink-0 rounded-lg object-cover"
-      />
-    )
-  }
-  return (
-    <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg border border-[color:rgb(var(--votuna-ink)/0.12)] bg-[rgba(var(--votuna-ink),0.05)] text-[9px] uppercase tracking-[0.14em] text-[color:rgb(var(--votuna-ink)/0.45)]">
-      No Art
-    </div>
-  )
 }
 
 export default function PlaylistDetailPage() {
@@ -190,12 +65,7 @@ export default function PlaylistDetailPage() {
   const [activePlayerTrack, setActivePlayerTrack] = useState<PlayerTrack | null>(null)
   const [playerNonce, setPlayerNonce] = useState(0)
 
-  const currentUserQuery = useQuery({
-    queryKey: ['currentUser'],
-    queryFn: () => apiJsonOrNull<User>('/api/v1/users/me'),
-    refetchInterval: 60_000,
-    staleTime: 30_000,
-  })
+  const currentUserQuery = useCurrentUser()
   const currentUser = currentUserQuery.data ?? null
 
   const playlistQuery = useQuery({
@@ -417,18 +287,18 @@ export default function PlaylistDetailPage() {
 
   if (playlistQuery.isLoading) {
     return (
-      <main className="mx-auto w-full max-w-6xl px-6 py-16">
-        <Card className="rounded-3xl border border-[color:rgb(var(--votuna-ink)/0.08)] bg-[rgba(var(--votuna-paper),0.9)] p-6 shadow-xl shadow-black/5">
+      <PageShell>
+        <SurfaceCard>
           <p className="text-sm text-[color:rgb(var(--votuna-ink)/0.6)]">Loading playlist...</p>
-        </Card>
-      </main>
+        </SurfaceCard>
+      </PageShell>
     )
   }
 
   if (!playlist) {
     return (
-      <main className="mx-auto w-full max-w-6xl px-6 py-16">
-        <Card className="rounded-3xl border border-[color:rgb(var(--votuna-ink)/0.08)] bg-[rgba(var(--votuna-paper),0.9)] p-6 shadow-xl shadow-black/5">
+      <PageShell>
+        <SurfaceCard>
           <p className="text-sm text-[color:rgb(var(--votuna-ink)/0.6)]">Playlist not found.</p>
           <Link
             href="/"
@@ -436,19 +306,17 @@ export default function PlaylistDetailPage() {
           >
             Back to dashboard
           </Link>
-        </Card>
-      </main>
+        </SurfaceCard>
+      </PageShell>
     )
   }
 
   return (
-    <main className="mx-auto w-full max-w-6xl px-6 py-16 pb-44">
+    <PageShell className="pb-44">
       <div className="fade-up space-y-8">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <p className="text-xs uppercase tracking-[0.25em] text-[color:rgb(var(--votuna-ink)/0.4)]">
-              Playlist
-            </p>
+            <SectionEyebrow>Playlist</SectionEyebrow>
             <h1 className="mt-2 text-3xl font-semibold text-[rgb(var(--votuna-ink))]">
               {playlist.title}
             </h1>
@@ -474,11 +342,9 @@ export default function PlaylistDetailPage() {
           <TabPanels>
             <TabPanel>
               <div className="space-y-6">
-                <Card className="rounded-3xl border border-[color:rgb(var(--votuna-ink)/0.08)] bg-[rgba(var(--votuna-paper),0.9)] p-6 shadow-xl shadow-black/5">
+                <SurfaceCard>
                   <div>
-                    <p className="text-xs uppercase tracking-[0.25em] text-[color:rgb(var(--votuna-ink)/0.4)]">
-                      Find and suggest tracks
-                    </p>
+                    <SectionEyebrow>Find and suggest tracks</SectionEyebrow>
                     <p className="mt-2 text-sm text-[color:rgb(var(--votuna-ink)/0.7)]">
                       Search by track name, play the track, and suggest it to the vote queue.
                     </p>
@@ -491,13 +357,12 @@ export default function PlaylistDetailPage() {
                       placeholder="Search SoundCloud tracks"
                       className="flex-1"
                     />
-                    <Button
+                    <PrimaryButton
                       onClick={handleSearchTracks}
                       disabled={isSearching || !searchQuery.trim()}
-                      className="rounded-full bg-[rgb(var(--votuna-ink))] text-[rgb(var(--votuna-paper))] hover:bg-[color:rgb(var(--votuna-ink)/0.9)]"
                     >
                       {isSearching ? 'Searching...' : 'Search'}
-                    </Button>
+                    </PrimaryButton>
                   </div>
 
                   {searchStatus ? <p className="mt-3 text-xs text-rose-500">{searchStatus}</p> : null}
@@ -551,13 +416,13 @@ export default function PlaylistDetailPage() {
                                     Play
                                   </Button>
                                 ) : null}
-                                <Button
+                                <PrimaryButton
                                   onClick={() => handleSuggestFromSearch(track)}
                                   disabled={suggestMutation.isPending}
-                                  className="w-24 justify-center rounded-full bg-[rgb(var(--votuna-ink))] text-[rgb(var(--votuna-paper))] hover:bg-[color:rgb(var(--votuna-ink)/0.9)]"
+                                  className="w-24 justify-center"
                                 >
                                   Suggest
-                                </Button>
+                                </PrimaryButton>
                               </div>
                             </div>
                           </div>
@@ -577,24 +442,21 @@ export default function PlaylistDetailPage() {
                         placeholder="https://soundcloud.com/artist/track-name"
                         className="flex-1"
                       />
-                      <Button
+                      <PrimaryButton
                         onClick={handleSuggestFromLink}
                         disabled={suggestMutation.isPending || !linkSuggestionUrl.trim()}
-                        className="rounded-full bg-[rgb(var(--votuna-ink))] text-[rgb(var(--votuna-paper))] hover:bg-[color:rgb(var(--votuna-ink)/0.9)]"
                       >
                         {suggestMutation.isPending ? 'Adding...' : 'Suggest from link'}
-                      </Button>
+                      </PrimaryButton>
                     </div>
                   </div>
                   {suggestStatus ? <p className="mt-3 text-xs text-rose-500">{suggestStatus}</p> : null}
-                </Card>
+                </SurfaceCard>
 
-                <Card className="rounded-3xl border border-[color:rgb(var(--votuna-ink)/0.08)] bg-[rgba(var(--votuna-paper),0.9)] p-6 shadow-xl shadow-black/5">
+                <SurfaceCard>
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-xs uppercase tracking-[0.25em] text-[color:rgb(var(--votuna-ink)/0.4)]">
-                        Active suggestions
-                      </p>
+                      <SectionEyebrow>Active suggestions</SectionEyebrow>
                       <p className="mt-2 text-sm text-[color:rgb(var(--votuna-ink)/0.7)]">
                         Vote to add tracks to the playlist.
                       </p>
@@ -677,13 +539,13 @@ export default function PlaylistDetailPage() {
                                     Play
                                   </Button>
                                 ) : null}
-                                <Button
+                                <PrimaryButton
                                   onClick={() => handleVote(suggestion.id)}
                                   disabled={voteMutation.isPending}
-                                  className="w-24 justify-center rounded-full bg-[rgb(var(--votuna-ink))] text-[rgb(var(--votuna-paper))] hover:bg-[color:rgb(var(--votuna-ink)/0.9)]"
+                                  className="w-24 justify-center"
                                 >
                                   Vote
-                                </Button>
+                                </PrimaryButton>
                               </div>
                             </div>
                           </div>
@@ -691,14 +553,12 @@ export default function PlaylistDetailPage() {
                       ))}
                     </div>
                   )}
-                </Card>
+                </SurfaceCard>
 
-                <Card className="rounded-3xl border border-[color:rgb(var(--votuna-ink)/0.08)] bg-[rgba(var(--votuna-paper),0.9)] p-6 shadow-xl shadow-black/5">
+                <SurfaceCard>
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-xs uppercase tracking-[0.25em] text-[color:rgb(var(--votuna-ink)/0.4)]">
-                        Current playlist songs
-                      </p>
+                      <SectionEyebrow>Current playlist songs</SectionEyebrow>
                       <p className="mt-2 text-sm text-[color:rgb(var(--votuna-ink)/0.7)]">
                         Tracks currently in the SoundCloud playlist.
                       </p>
@@ -791,28 +651,25 @@ export default function PlaylistDetailPage() {
                       ))}
                     </div>
                   )}
-                </Card>
+                </SurfaceCard>
               </div>
             </TabPanel>
             <TabPanel>
               <div className="space-y-6">
-                <Card className="rounded-3xl border border-[color:rgb(var(--votuna-ink)/0.08)] bg-[rgba(var(--votuna-paper),0.9)] p-6 shadow-xl shadow-black/5">
+                <SurfaceCard>
                   <div className="flex flex-wrap items-center justify-between gap-4">
                     <div>
-                      <p className="text-xs uppercase tracking-[0.25em] text-[color:rgb(var(--votuna-ink)/0.4)]">
-                        Settings
-                      </p>
+                      <SectionEyebrow>Settings</SectionEyebrow>
                       <p className="mt-2 text-sm text-[color:rgb(var(--votuna-ink)/0.7)]">
                         Votes required to add a track automatically.
                       </p>
                     </div>
-                    <Button
+                    <PrimaryButton
                       onClick={handleSettingsSave}
                       disabled={settingsMutation.isPending || !canEditSettings}
-                      className="rounded-full bg-[rgb(var(--votuna-ink))] text-[rgb(var(--votuna-paper))] hover:bg-[color:rgb(var(--votuna-ink)/0.9)]"
                     >
                       {settingsMutation.isPending ? 'Saving...' : 'Save settings'}
-                    </Button>
+                    </PrimaryButton>
                   </div>
                   <div className="mt-6 grid gap-6 sm:grid-cols-2">
                     <div>
@@ -872,14 +729,12 @@ export default function PlaylistDetailPage() {
                       Only the playlist owner can edit these settings.
                     </p>
                   ) : null}
-                </Card>
+                </SurfaceCard>
 
-                <Card className="rounded-3xl border border-[color:rgb(var(--votuna-ink)/0.08)] bg-[rgba(var(--votuna-paper),0.9)] p-6 shadow-xl shadow-black/5">
+                <SurfaceCard>
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-xs uppercase tracking-[0.25em] text-[color:rgb(var(--votuna-ink)/0.4)]">
-                        Collaborators
-                      </p>
+                      <SectionEyebrow>Collaborators</SectionEyebrow>
                       <p className="mt-2 text-sm text-[color:rgb(var(--votuna-ink)/0.7)]">
                         Users who have accepted the invite.
                       </p>
@@ -904,20 +759,14 @@ export default function PlaylistDetailPage() {
                             className="flex items-center justify-between rounded-2xl border border-[color:rgb(var(--votuna-ink)/0.08)] bg-[rgba(var(--votuna-paper),0.8)] px-4 py-3"
                           >
                             <div className="flex items-center gap-3">
-                              {avatarSrc ? (
-                                <Image
-                                  src={avatarSrc}
-                                  alt={member.display_name || 'Collaborator avatar'}
-                                  width={32}
-                                  height={32}
-                                  unoptimized
-                                  className="h-8 w-8 rounded-full object-cover"
-                                />
-                              ) : (
-                                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[rgba(var(--votuna-ink),0.1)] text-xs font-semibold text-[rgb(var(--votuna-ink))]">
-                                  {(member.display_name || 'U').slice(0, 1).toUpperCase()}
-                                </div>
-                              )}
+                              <UserAvatar
+                                src={avatarSrc}
+                                alt={member.display_name || 'Collaborator avatar'}
+                                fallback={(member.display_name || 'U').slice(0, 1).toUpperCase()}
+                                size={32}
+                                className="h-8 w-8 rounded-full"
+                                fallbackClassName="h-8 w-8 rounded-full"
+                              />
                               <div>
                                 <p className="text-sm font-semibold text-[rgb(var(--votuna-ink))]">
                                   {member.display_name || 'Unknown user'}
@@ -940,62 +789,19 @@ export default function PlaylistDetailPage() {
                       })}
                     </div>
                   )}
-                </Card>
+                </SurfaceCard>
               </div>
             </TabPanel>
           </TabPanels>
         </TabGroup>
       </div>
       {activePlayerTrack ? (
-        <div className="fixed bottom-4 left-1/2 z-40 w-[min(940px,calc(100%-1.5rem))] -translate-x-1/2">
-          <div className="rounded-2xl border border-[color:rgb(var(--votuna-ink)/0.12)] bg-[rgba(var(--votuna-paper),0.98)] p-3 shadow-2xl shadow-black/25 backdrop-blur-sm">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex min-w-0 items-center gap-3">
-                <TrackArtwork
-                  artworkUrl={activePlayerTrack.artwork_url}
-                  title={activePlayerTrack.title}
-                />
-                <div className="min-w-0">
-                  <p className="text-[10px] uppercase tracking-[0.2em] text-[color:rgb(var(--votuna-ink)/0.45)]">
-                    Now Playing
-                  </p>
-                  <p className="truncate text-sm font-semibold text-[rgb(var(--votuna-ink))]">
-                    {activePlayerTrack.title}
-                  </p>
-                  <p className="truncate text-xs text-[color:rgb(var(--votuna-ink)/0.6)]">
-                    {activePlayerTrack.artist || 'Unknown artist'}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <a
-                  href={activePlayerTrack.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex w-24 justify-center rounded-full border border-[color:rgb(var(--votuna-ink)/0.18)] px-4 py-2 text-xs font-semibold text-[rgb(var(--votuna-ink))] hover:bg-[rgba(var(--votuna-paper),0.7)]"
-                >
-                  Open
-                </a>
-                <button
-                  type="button"
-                  onClick={() => setActivePlayerTrack(null)}
-                  className="inline-flex w-24 justify-center rounded-full bg-[rgb(var(--votuna-ink))] px-4 py-2 text-xs font-semibold text-[rgb(var(--votuna-paper))] hover:bg-[color:rgb(var(--votuna-ink)/0.9)]"
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-            <iframe
-              key={`${activePlayerTrack.key}-${playerNonce}`}
-              title={`Now playing ${activePlayerTrack.title}`}
-              src={buildSoundcloudEmbedUrl(activePlayerTrack.url, true)}
-              className="mt-3 h-24 w-full rounded-xl border-0"
-              loading="lazy"
-              allow="autoplay"
-            />
-          </div>
-        </div>
+        <NowPlayingDock
+          track={activePlayerTrack}
+          playerNonce={playerNonce}
+          onClose={() => setActivePlayerTrack(null)}
+        />
       ) : null}
-    </main>
+    </PageShell>
   )
 }

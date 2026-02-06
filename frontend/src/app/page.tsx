@@ -4,15 +4,8 @@ import { Button, Card, TextInput } from '@tremor/react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
 import { useMemo, useState } from 'react'
-import { apiJson, apiJsonOrNull, ApiError } from '../lib/api'
-
-type User = {
-  id?: number
-  display_name?: string | null
-  first_name?: string | null
-  last_name?: string | null
-  email?: string | null
-}
+import { useCurrentUser } from '@/hooks/useCurrentUser'
+import { apiJson, ApiError } from '../lib/api'
 
 type ProviderPlaylist = {
   provider: string
@@ -100,12 +93,7 @@ export default function Home() {
   const [actionError, setActionError] = useState('')
   const [enabling, setEnabling] = useState<Record<string, boolean>>({})
 
-  const userQuery = useQuery({
-    queryKey: ['currentUser'],
-    queryFn: () => apiJsonOrNull<User>('/api/v1/users/me'),
-    refetchInterval: 60_000,
-    staleTime: 30_000,
-  })
+  const userQuery = useCurrentUser()
   const user = userQuery.data ?? null
 
   const providerQuery = useQuery({

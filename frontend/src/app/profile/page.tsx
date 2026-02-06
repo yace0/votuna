@@ -1,20 +1,19 @@
 'use client'
 
-import { Button, Card, Select, SelectItem, TextInput } from '@tremor/react'
+import { Select, SelectItem } from '@tremor/react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
 import { useEffect, useRef, useState, type ChangeEvent } from 'react'
-import { apiJson, apiJsonOrNull, API_URL } from '../../lib/api'
 
-type User = {
-  id?: number
-  email?: string | null
-  first_name?: string | null
-  last_name?: string | null
-  display_name?: string | null
-  avatar_url?: string | null
-  auth_provider?: string | null
-}
+import EditableProfileField from '@/components/profile/EditableProfileField'
+import PageShell from '@/components/ui/PageShell'
+import PrimaryButton from '@/components/ui/PrimaryButton'
+import SectionEyebrow from '@/components/ui/SectionEyebrow'
+import SurfaceCard from '@/components/ui/SurfaceCard'
+import UserAvatar from '@/components/ui/UserAvatar'
+import { apiJson, API_URL } from '@/lib/api'
+import { currentUserQueryKey, useCurrentUser } from '@/hooks/useCurrentUser'
+import type { User } from '@/types/user'
 
 type ThemeSetting = 'light' | 'dark' | 'system'
 
@@ -45,12 +44,7 @@ export default function ProfilePage() {
   })
   const [settingsStatus, setSettingsStatus] = useState('')
 
-  const userQuery = useQuery({
-    queryKey: ['currentUser'],
-    queryFn: () => apiJsonOrNull<User>('/api/v1/users/me'),
-    refetchInterval: 60_000,
-    staleTime: 30_000,
-  })
+  const userQuery = useCurrentUser()
   const user = userQuery.data ?? null
 
   const settingsQuery = useQuery({
@@ -106,7 +100,7 @@ export default function ProfilePage() {
       })
     },
     onSuccess: (updated) => {
-      queryClient.setQueryData(['currentUser'], updated)
+      queryClient.setQueryData(currentUserQueryKey, updated)
       window.dispatchEvent(new CustomEvent('votuna:user-updated', { detail: updated }))
     },
   })
@@ -122,7 +116,7 @@ export default function ProfilePage() {
       })
     },
     onSuccess: (updated) => {
-      queryClient.setQueryData(['currentUser'], updated)
+      queryClient.setQueryData(currentUserQueryKey, updated)
       window.dispatchEvent(new CustomEvent('votuna:user-updated', { detail: updated }))
     },
   })
@@ -218,18 +212,18 @@ export default function ProfilePage() {
 
   if (userQuery.isLoading) {
     return (
-      <main className="mx-auto w-full max-w-4xl px-6 py-16">
-        <Card className="rounded-3xl border border-[color:rgb(var(--votuna-ink)/0.08)] bg-[rgba(var(--votuna-paper),0.9)] p-6 shadow-xl shadow-black/5">
+      <PageShell maxWidth="4xl">
+        <SurfaceCard>
           <p className="text-sm text-[color:rgb(var(--votuna-ink)/0.6)]">Loading profile...</p>
-        </Card>
-      </main>
+        </SurfaceCard>
+      </PageShell>
     )
   }
 
   if (!user) {
     return (
-      <main className="mx-auto w-full max-w-4xl px-6 py-16">
-        <Card className="rounded-3xl border border-[color:rgb(var(--votuna-ink)/0.08)] bg-[rgba(var(--votuna-paper),0.9)] p-6 shadow-xl shadow-black/5">
+      <PageShell maxWidth="4xl">
+        <SurfaceCard>
           <h1 className="text-2xl font-semibold text-[rgb(var(--votuna-ink))]">You are not signed in</h1>
           <p className="mt-2 text-sm text-[color:rgb(var(--votuna-ink)/0.7)]">
             Head back to the homepage and connect with SoundCloud to see your profile.
@@ -240,37 +234,33 @@ export default function ProfilePage() {
           >
             Back to home
           </Link>
-        </Card>
-      </main>
+        </SurfaceCard>
+      </PageShell>
     )
   }
 
   return (
-    <main className="mx-auto w-full max-w-4xl px-6 py-16">
+    <PageShell maxWidth="4xl">
       <div className="fade-up space-y-6">
         <div>
-          <p className="text-xs uppercase tracking-[0.25em] text-[color:rgb(var(--votuna-ink)/0.4)]">
-            Profile
-          </p>
+          <SectionEyebrow>Profile</SectionEyebrow>
           <h1 className="mt-2 text-3xl font-semibold text-[rgb(var(--votuna-ink))]">Welcome back</h1>
         </div>
-        <Card className="rounded-3xl border border-[color:rgb(var(--votuna-ink)/0.08)] bg-[rgba(var(--votuna-paper),0.9)] p-6 shadow-xl shadow-black/5">
+        <SurfaceCard>
           <div className="space-y-6">
             <div className="flex flex-wrap items-center gap-4">
               <div className="h-16 w-16 overflow-hidden rounded-2xl border border-[color:rgb(var(--votuna-ink)/0.1)] bg-[rgb(var(--votuna-paper))]">
-                {avatarSrc ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={avatarSrc} alt="Avatar" className="h-full w-full object-cover" />
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center text-sm font-semibold text-[color:rgb(var(--votuna-ink)/0.6)]">
-                    ?
-                  </div>
-                )}
+                <UserAvatar
+                  src={avatarSrc}
+                  alt="Avatar"
+                  fallback="?"
+                  size={64}
+                  className="h-full w-full rounded-none"
+                  fallbackClassName="h-full w-full rounded-none bg-transparent text-sm font-semibold text-[color:rgb(var(--votuna-ink)/0.6)]"
+                />
               </div>
               <div className="min-w-[220px] flex-1">
-                <p className="text-xs uppercase tracking-[0.2em] text-[color:rgb(var(--votuna-ink)/0.4)]">
-                  Avatar
-                </p>
+                <SectionEyebrow className="tracking-[0.2em]">Avatar</SectionEyebrow>
                 <div className="mt-2 flex flex-wrap items-center gap-3">
                   <input
                     ref={fileInputRef}
@@ -279,13 +269,12 @@ export default function ProfilePage() {
                     onChange={onAvatarChange}
                     className="hidden"
                   />
-                  <Button
+                  <PrimaryButton
                     onClick={() => fileInputRef.current?.click()}
                     disabled={avatarUploading}
-                    className="rounded-full bg-[rgb(var(--votuna-ink))] text-[rgb(var(--votuna-paper))] hover:bg-[color:rgb(var(--votuna-ink)/0.9)]"
                   >
                     {avatarUploading ? 'Uploading...' : 'Upload avatar'}
-                  </Button>
+                  </PrimaryButton>
                 </div>
                 {avatarStatus ? (
                   <p className="mt-2 text-xs text-[color:rgb(var(--votuna-ink)/0.6)]">
@@ -296,126 +285,63 @@ export default function ProfilePage() {
             </div>
 
             <div className="grid gap-6 sm:grid-cols-2">
+              <EditableProfileField
+                label="Display name"
+                value={form.display_name}
+                onChange={(value) => updateField('display_name', value)}
+                isDirty={isDirty('display_name')}
+                onSave={() => saveField('display_name')}
+                isSaving={saving.display_name}
+                status={status.display_name}
+              />
+
               <div>
-                <p className="text-xs uppercase tracking-[0.2em] text-[color:rgb(var(--votuna-ink)/0.4)]">
-                  Display name
-                </p>
-                <div className="mt-2 flex items-center gap-2">
-                  <TextInput
-                    value={form.display_name}
-                    onValueChange={(value) => updateField('display_name', value)}
-                    className="bg-[rgba(var(--votuna-paper),0.85)] text-[rgb(var(--votuna-ink))]"
-                  />
-                  {isDirty('display_name') ? (
-                    <Button
-                      onClick={() => saveField('display_name')}
-                      disabled={saving.display_name}
-                      className="rounded-full bg-[rgb(var(--votuna-ink))] text-[rgb(var(--votuna-paper))] hover:bg-[color:rgb(var(--votuna-ink)/0.9)]"
-                    >
-                      {saving.display_name ? 'Saving...' : 'Save'}
-                    </Button>
-                  ) : null}
-                </div>
-                {status.display_name ? (
-                  <p className="mt-2 text-xs text-[color:rgb(var(--votuna-ink)/0.6)]">
-                    {status.display_name}
-                  </p>
-                ) : null}
-              </div>
-              <div>
-                <p className="text-xs uppercase tracking-[0.2em] text-[color:rgb(var(--votuna-ink)/0.4)]">
-                  Provider
-                </p>
+                <SectionEyebrow className="tracking-[0.2em]">Provider</SectionEyebrow>
                 <p className="mt-3 text-base font-semibold text-[rgb(var(--votuna-ink))]">
                   {user.auth_provider ?? '-'}
                 </p>
               </div>
-              <div>
-                <p className="text-xs uppercase tracking-[0.2em] text-[color:rgb(var(--votuna-ink)/0.4)]">
-                  First name
-                </p>
-                <div className="mt-2 flex items-center gap-2">
-                  <TextInput
-                    value={form.first_name}
-                    onValueChange={(value) => updateField('first_name', value)}
-                    className="bg-[rgba(var(--votuna-paper),0.85)] text-[rgb(var(--votuna-ink))]"
-                  />
-                  {isDirty('first_name') ? (
-                    <Button
-                      onClick={() => saveField('first_name')}
-                      disabled={saving.first_name}
-                      className="rounded-full bg-[rgb(var(--votuna-ink))] text-[rgb(var(--votuna-paper))] hover:bg-[color:rgb(var(--votuna-ink)/0.9)]"
-                    >
-                      {saving.first_name ? 'Saving...' : 'Save'}
-                    </Button>
-                  ) : null}
-                </div>
-                {status.first_name ? (
-                  <p className="mt-2 text-xs text-[color:rgb(var(--votuna-ink)/0.6)]">
-                    {status.first_name}
-                  </p>
-                ) : null}
-              </div>
-              <div>
-                <p className="text-xs uppercase tracking-[0.2em] text-[color:rgb(var(--votuna-ink)/0.4)]">
-                  Last name
-                </p>
-                <div className="mt-2 flex items-center gap-2">
-                  <TextInput
-                    value={form.last_name}
-                    onValueChange={(value) => updateField('last_name', value)}
-                    className="bg-[rgba(var(--votuna-paper),0.85)] text-[rgb(var(--votuna-ink))]"
-                  />
-                  {isDirty('last_name') ? (
-                    <Button
-                      onClick={() => saveField('last_name')}
-                      disabled={saving.last_name}
-                      className="rounded-full bg-[rgb(var(--votuna-ink))] text-[rgb(var(--votuna-paper))] hover:bg-[color:rgb(var(--votuna-ink)/0.9)]"
-                    >
-                      {saving.last_name ? 'Saving...' : 'Save'}
-                    </Button>
-                  ) : null}
-                </div>
-                {status.last_name ? (
-                  <p className="mt-2 text-xs text-[color:rgb(var(--votuna-ink)/0.6)]">
-                    {status.last_name}
-                  </p>
-                ) : null}
-              </div>
-              <div className="sm:col-span-2">
-                <p className="text-xs uppercase tracking-[0.2em] text-[color:rgb(var(--votuna-ink)/0.4)]">
-                  Email
-                </p>
-                <div className="mt-2 flex flex-wrap items-center gap-2">
-                  <TextInput
-                    value={form.email}
-                    onValueChange={(value) => updateField('email', value)}
-                    className="min-w-[220px] flex-1 bg-[rgba(var(--votuna-paper),0.85)] text-[rgb(var(--votuna-ink))]"
-                  />
-                  {isDirty('email') ? (
-                    <Button
-                      onClick={() => saveField('email')}
-                      disabled={saving.email}
-                      className="rounded-full bg-[rgb(var(--votuna-ink))] text-[rgb(var(--votuna-paper))] hover:bg-[color:rgb(var(--votuna-ink)/0.9)]"
-                    >
-                      {saving.email ? 'Saving...' : 'Save'}
-                    </Button>
-                  ) : null}
-                </div>
-                {status.email ? (
-                  <p className="mt-2 text-xs text-[color:rgb(var(--votuna-ink)/0.6)]">{status.email}</p>
-                ) : null}
-              </div>
+
+              <EditableProfileField
+                label="First name"
+                value={form.first_name}
+                onChange={(value) => updateField('first_name', value)}
+                isDirty={isDirty('first_name')}
+                onSave={() => saveField('first_name')}
+                isSaving={saving.first_name}
+                status={status.first_name}
+              />
+
+              <EditableProfileField
+                label="Last name"
+                value={form.last_name}
+                onChange={(value) => updateField('last_name', value)}
+                isDirty={isDirty('last_name')}
+                onSave={() => saveField('last_name')}
+                isSaving={saving.last_name}
+                status={status.last_name}
+              />
+
+              <EditableProfileField
+                label="Email"
+                value={form.email}
+                onChange={(value) => updateField('email', value)}
+                isDirty={isDirty('email')}
+                onSave={() => saveField('email')}
+                isSaving={saving.email}
+                status={status.email}
+                className="sm:col-span-2"
+                rowClassName="flex-wrap"
+                inputClassName="min-w-[220px] flex-1"
+              />
             </div>
           </div>
-        </Card>
+        </SurfaceCard>
 
-        <Card className="rounded-3xl border border-[color:rgb(var(--votuna-ink)/0.08)] bg-[rgba(var(--votuna-paper),0.9)] p-6 shadow-xl shadow-black/5">
+        <SurfaceCard>
           <div className="flex items-start justify-between gap-6">
             <div>
-              <p className="text-xs uppercase tracking-[0.25em] text-[color:rgb(var(--votuna-ink)/0.4)]">
-                Settings
-              </p>
+              <SectionEyebrow>Settings</SectionEyebrow>
               <h2 className="mt-2 text-2xl font-semibold text-[rgb(var(--votuna-ink))]">
                 Personal preferences
               </h2>
@@ -423,20 +349,17 @@ export default function ProfilePage() {
                 Control the way Votuna looks and whether we send you emails.
               </p>
             </div>
-            <Button
+            <PrimaryButton
               onClick={saveSettings}
               disabled={!settingsDirty || settingsMutation.isPending || settingsQuery.isLoading}
-              className="rounded-full bg-[rgb(var(--votuna-ink))] text-[rgb(var(--votuna-paper))] hover:bg-[color:rgb(var(--votuna-ink)/0.9)]"
             >
               {settingsMutation.isPending ? 'Saving...' : 'Save settings'}
-            </Button>
+            </PrimaryButton>
           </div>
 
           <div className="mt-6 grid gap-6 sm:grid-cols-2">
             <div>
-              <p className="text-xs uppercase tracking-[0.2em] text-[color:rgb(var(--votuna-ink)/0.4)]">
-                Theme
-              </p>
+              <SectionEyebrow className="tracking-[0.2em]">Theme</SectionEyebrow>
               <div className="mt-2">
                 <Select
                   value={settingsForm.theme}
@@ -453,9 +376,7 @@ export default function ProfilePage() {
               </p>
             </div>
             <div>
-              <p className="text-xs uppercase tracking-[0.2em] text-[color:rgb(var(--votuna-ink)/0.4)]">
-                Emails
-              </p>
+              <SectionEyebrow className="tracking-[0.2em]">Emails</SectionEyebrow>
               <label className="mt-3 flex items-center gap-3 text-sm text-[color:rgb(var(--votuna-ink)/0.7)]">
                 <input
                   type="checkbox"
@@ -473,8 +394,8 @@ export default function ProfilePage() {
           {settingsQuery.isLoading ? (
             <p className="mt-2 text-xs text-[color:rgb(var(--votuna-ink)/0.6)]">Loading settings...</p>
           ) : null}
-        </Card>
+        </SurfaceCard>
       </div>
-    </main>
+    </PageShell>
   )
 }
