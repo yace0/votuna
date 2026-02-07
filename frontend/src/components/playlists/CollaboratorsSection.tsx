@@ -1,5 +1,5 @@
 import { API_URL } from '@/lib/api'
-import type { PlaylistMember } from '@/types/votuna'
+import type { PlaylistMember } from '@/lib/types/votuna'
 import SectionEyebrow from '@/components/ui/SectionEyebrow'
 import SurfaceCard from '@/components/ui/SurfaceCard'
 import UserAvatar from '@/components/ui/UserAvatar'

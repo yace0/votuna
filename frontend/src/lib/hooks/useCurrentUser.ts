@@ -1,8 +1,8 @@
 import { useQuery } from '@tanstack/react-query'
 
-import { queryKeys } from '@/constants/queryKeys'
+import { queryKeys } from '@/lib/constants/queryKeys'
 import { apiJsonOrNull } from '@/lib/api'
-import type { User } from '@/types/user'
+import type { User } from '@/lib/types/user'
 
 export const currentUserQueryKey = queryKeys.currentUser
 

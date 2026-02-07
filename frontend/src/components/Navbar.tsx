@@ -6,8 +6,8 @@ import { useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
-import { currentUserQueryKey, useCurrentUser } from '@/hooks/useCurrentUser'
-import type { User } from '@/types/user'
+import { currentUserQueryKey, useCurrentUser } from '@/lib/hooks/useCurrentUser'
+import type { User } from '@/lib/types/user'
 import { apiFetch, API_URL } from '../lib/api'
 
 /** Select the best display name for the current user. */

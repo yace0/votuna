@@ -1,4 +1,4 @@
-import type { PlayerTrack } from '@/types/votuna'
+import type { PlayerTrack } from '@/lib/types/votuna'
 
 import TrackArtwork from './TrackArtwork'
 

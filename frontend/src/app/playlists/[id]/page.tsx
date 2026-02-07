@@ -12,7 +12,7 @@ import TracksSection from '@/components/playlists/TracksSection'
 import PageShell from '@/components/ui/PageShell'
 import SectionEyebrow from '@/components/ui/SectionEyebrow'
 import SurfaceCard from '@/components/ui/SurfaceCard'
-import { usePlaylistDetailPage } from '@/hooks/usePlaylistDetailPage'
+import { usePlaylistDetailPage } from '@/lib/hooks/usePlaylistDetailPage'
 
 export default function PlaylistDetailPage() {
   const params = useParams()

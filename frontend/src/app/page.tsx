@@ -4,8 +4,8 @@ import { Button, Card, TextInput } from '@tremor/react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
 import { useMemo, useState } from 'react'
-import { queryKeys } from '@/constants/queryKeys'
-import { useCurrentUser } from '@/hooks/useCurrentUser'
+import { queryKeys } from '@/lib/constants/queryKeys'
+import { useCurrentUser } from '@/lib/hooks/useCurrentUser'
 import { apiJson, ApiError } from '../lib/api'
 
 type ProviderPlaylist = {

@@ -6,15 +6,15 @@ import Link from 'next/link'
 import { useEffect, useRef, useState, type ChangeEvent } from 'react'
 
 import EditableProfileField from '@/components/profile/EditableProfileField'
-import { queryKeys } from '@/constants/queryKeys'
+import { queryKeys } from '@/lib/constants/queryKeys'
 import PageShell from '@/components/ui/PageShell'
 import PrimaryButton from '@/components/ui/PrimaryButton'
 import SectionEyebrow from '@/components/ui/SectionEyebrow'
 import SurfaceCard from '@/components/ui/SurfaceCard'
 import UserAvatar from '@/components/ui/UserAvatar'
 import { apiJson, API_URL } from '@/lib/api'
-import { currentUserQueryKey, useCurrentUser } from '@/hooks/useCurrentUser'
-import type { User } from '@/types/user'
+import { currentUserQueryKey, useCurrentUser } from '@/lib/hooks/useCurrentUser'
+import type { User } from '@/lib/types/user'
 
 type ThemeSetting = 'light' | 'dark' | 'system'
 

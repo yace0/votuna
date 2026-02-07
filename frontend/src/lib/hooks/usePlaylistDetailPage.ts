@@ -1,9 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
 
-import { queryKeys } from '@/constants/queryKeys'
+import { queryKeys } from '@/lib/constants/queryKeys'
 import { apiJson } from '@/lib/api'
-import { useCurrentUser } from '@/hooks/useCurrentUser'
+import { useCurrentUser } from '@/lib/hooks/useCurrentUser'
 import type {
   PlayerTrack,
   PlaylistMember,
@@ -13,7 +13,7 @@ import type {
   Suggestion,
   TrackPlayRequest,
   VotunaPlaylist,
-} from '@/types/votuna'
+} from '@/lib/types/votuna'
 
 export function usePlaylistDetailPage(playlistId: string | undefined) {
   const queryClient = useQueryClient()

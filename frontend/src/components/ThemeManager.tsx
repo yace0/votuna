@@ -2,7 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
-import { queryKeys } from '@/constants/queryKeys'
+import { queryKeys } from '@/lib/constants/queryKeys'
 import { apiJsonOrNull } from '../lib/api'
 
 type ThemeSetting = 'light' | 'dark' | 'system'

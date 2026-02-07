@@ -1,6 +1,6 @@
 import { Button, TextInput } from '@tremor/react'
 
-import type { ProviderTrack, TrackPlayRequest } from '@/types/votuna'
+import type { ProviderTrack, TrackPlayRequest } from '@/lib/types/votuna'
 import PrimaryButton from '@/components/ui/PrimaryButton'
 import SectionEyebrow from '@/components/ui/SectionEyebrow'
 import SurfaceCard from '@/components/ui/SurfaceCard'
