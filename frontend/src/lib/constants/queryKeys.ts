@@ -13,4 +13,12 @@ export const queryKeys = {
     ['votunaTracks', playlistId] as const,
   votunaMembers: (playlistId: string | undefined) =>
     ['votunaMembers', playlistId] as const,
+  votunaManagementSourceTracks: (
+    playlistId: string | undefined,
+    sourceKey: string,
+    search: string,
+    limit: number,
+    offset: number,
+  ) =>
+    ['votunaManagementSourceTracks', playlistId, sourceKey, search, limit, offset] as const,
 }

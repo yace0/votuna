@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import CollaboratorsSection from '@/components/playlists/CollaboratorsSection'
 import NowPlayingDock from '@/components/playlists/NowPlayingDock'
+import PlaylistManagementSection from '@/components/playlists/PlaylistManagementSection'
 import PlaylistSettingsSection from '@/components/playlists/PlaylistSettingsSection'
 import SearchSuggestSection from '@/components/playlists/SearchSuggestSection'
 import SuggestionsSection from '@/components/playlists/SuggestionsSection'
@@ -72,6 +73,7 @@ export default function PlaylistDetailPage() {
           <TabList className="rounded-full bg-[rgba(var(--votuna-paper),0.85)] p-1">
             <Tab className="rounded-full px-4 py-2 text-sm">Playlist</Tab>
             <Tab className="rounded-full px-4 py-2 text-sm">Settings</Tab>
+            <Tab className="rounded-full px-4 py-2 text-sm">Manage</Tab>
           </TabList>
           <TabPanels>
             <TabPanel>
@@ -122,6 +124,50 @@ export default function PlaylistDetailPage() {
                 />
                 <CollaboratorsSection members={state.members} isLoading={state.isMembersLoading} />
               </div>
+            </TabPanel>
+            <TabPanel>
+              <PlaylistManagementSection
+                canManage={state.management.canManage}
+                direction={state.management.direction}
+                onDirectionChange={state.management.setDirection}
+                exportTargetMode={state.management.exportTargetMode}
+                onExportTargetModeChange={state.management.setExportTargetMode}
+                counterpartyOptions={state.management.counterpartyOptions}
+                selectedCounterpartyKey={state.management.selectedCounterpartyKey}
+                onSelectedCounterpartyKeyChange={state.management.setSelectedCounterpartyKey}
+                destinationCreateTitle={state.management.destinationCreateTitle}
+                onDestinationCreateTitleChange={state.management.setDestinationCreateTitle}
+                destinationCreateDescription={state.management.destinationCreateDescription}
+                onDestinationCreateDescriptionChange={state.management.setDestinationCreateDescription}
+                destinationCreateIsPublic={state.management.destinationCreateIsPublic}
+                onDestinationCreateIsPublicChange={state.management.setDestinationCreateIsPublic}
+                selectionMode={state.management.selectionMode}
+                onSelectionModeChange={state.management.setSelectionMode}
+                selectionValuesInput={state.management.selectionValuesInput}
+                onSelectionValuesInputChange={state.management.setSelectionValuesInput}
+                onApplyMergePreset={state.management.applyMergePreset}
+                sourceTrackSearch={state.management.sourceTrackSearch}
+                onSourceTrackSearchChange={state.management.setSourceTrackSearch}
+                sourceTrackLimit={state.management.sourceTrackLimit}
+                sourceTrackOffset={state.management.sourceTrackOffset}
+                sourceTrackTotalCount={state.management.sourceTrackTotalCount}
+                onSourceTrackPageChange={state.management.setSourceTrackOffset}
+                sourceTracks={state.management.sourceTracks}
+                selectedSongIds={state.management.selectedSongIds}
+                onToggleSelectedSong={state.management.toggleSelectedSong}
+                isSourceTracksLoading={state.management.isSourceTracksLoading}
+                sourceTracksStatus={state.management.sourceTracksStatus}
+                canPreview={state.management.canPreview}
+                isPreviewPending={state.management.isPreviewPending}
+                onPreview={state.management.onPreview}
+                preview={state.management.preview}
+                previewError={state.management.previewError}
+                canExecute={state.management.canExecute}
+                isExecutePending={state.management.isExecutePending}
+                onExecute={state.management.onExecute}
+                executeResult={state.management.executeResult}
+                executeError={state.management.executeError}
+              />
             </TabPanel>
           </TabPanels>
         </TabGroup>

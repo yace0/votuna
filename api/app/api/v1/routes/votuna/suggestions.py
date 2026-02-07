@@ -111,6 +111,7 @@ async def search_tracks_for_suggestions(
             provider_track_id=track.provider_track_id,
             title=track.title,
             artist=track.artist,
+            genre=track.genre,
             artwork_url=track.artwork_url,
             url=track.url,
         )

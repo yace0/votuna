@@ -235,6 +235,7 @@ async def list_votuna_tracks(
             provider_track_id=track.provider_track_id,
             title=track.title,
             artist=track.artist,
+            genre=track.genre,
             artwork_url=track.artwork_url,
             url=track.url,
             added_at=suggestion_lookup.get(track.provider_track_id, (None, None, None))[2],

@@ -51,6 +51,7 @@ class SoundcloudProvider(MusicProviderClient):
             provider_track_id=str(track_id),
             title=payload.get("title") or "Untitled",
             artist=user.get("username"),
+            genre=payload.get("genre"),
             artwork_url=payload.get("artwork_url") or user.get("avatar_url"),
             url=payload.get("permalink_url"),
         )

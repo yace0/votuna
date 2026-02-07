@@ -1,5 +1,6 @@
 import os
 import uuid
+from copy import deepcopy
 
 import pytest
 from fastapi.testclient import TestClient
@@ -22,7 +23,7 @@ from app.crud.user import user_crud
 from app.crud.votuna_playlist import votuna_playlist_crud
 from app.crud.votuna_playlist_member import votuna_playlist_member_crud
 from app.crud.votuna_playlist_settings import votuna_playlist_settings_crud
-from app.services.music_providers.base import ProviderPlaylist, ProviderTrack
+from app.services.music_providers.base import ProviderAPIError, ProviderPlaylist, ProviderTrack
 
 
 class DummyProvider:
@@ -42,15 +43,29 @@ class DummyProvider:
             provider_track_id="track-1",
             title="Test Track",
             artist="Artist",
+            genre="House",
             artwork_url=None,
             url="https://soundcloud.com/test/track-1",
+        ),
+        ProviderTrack(
+            provider_track_id="track-2",
+            title="Test Track Two",
+            artist="Artist Two",
+            genre="UKG",
+            artwork_url=None,
+            url="https://soundcloud.com/test/track-2",
         )
     ]
+    tracks_by_playlist_id = {
+        "provider-1": [tracks[0]],
+        "provider-2": [tracks[0], tracks[1]],
+    }
     search_tracks_results = [
         ProviderTrack(
             provider_track_id="track-search-1",
             title="Search Result One",
             artist="Artist One",
+            genre="House",
             artwork_url=None,
             url="https://soundcloud.com/test/search-result-one",
         ),
@@ -58,6 +73,7 @@ class DummyProvider:
             provider_track_id="track-search-2",
             title="Search Result Two",
             artist="Artist Two",
+            genre="Techno",
             artwork_url=None,
             url="https://soundcloud.com/test/search-result-two",
         ),
@@ -66,10 +82,14 @@ class DummyProvider:
         provider_track_id="track-resolved-1",
         title="Resolved Track",
         artist="Resolved Artist",
+        genre="House",
         artwork_url=None,
         url="https://soundcloud.com/test/resolved-track",
     )
     track_exists_value = False
+    add_tracks_calls: list[dict] = []
+    fail_add_chunk_for_track_ids: set[str] = set()
+    fail_add_single_for_track_ids: set[str] = set()
 
     def __init__(self, access_token: str):
         self.access_token = access_token
@@ -78,12 +98,20 @@ class DummyProvider:
         return self.playlists
 
     async def get_playlist(self, provider_playlist_id: str):
+        title_map = {
+            "provider-1": "Provider Playlist",
+            "provider-2": "Synced Playlist",
+            "source-1": "Source Playlist",
+            "dest-1": "Destination Playlist",
+            "export-dest-1": "Export Destination",
+        }
+        track_count = len(self.tracks_by_playlist_id.get(provider_playlist_id, self.tracks))
         return ProviderPlaylist(
             provider=self.provider,
             provider_playlist_id=provider_playlist_id,
-            title="Synced Playlist",
+            title=title_map.get(provider_playlist_id, "Synced Playlist"),
             description="Synced description",
-            track_count=3,
+            track_count=track_count,
             is_public=False,
         )
 
@@ -98,7 +126,7 @@ class DummyProvider:
         )
 
     async def list_tracks(self, provider_playlist_id: str):
-        return self.tracks
+        return self.tracks_by_playlist_id.get(provider_playlist_id, self.tracks)
 
     async def search_tracks(self, query: str, limit: int = 10):
         if not query.strip():
@@ -113,6 +141,46 @@ class DummyProvider:
         return self.resolved_track
 
     async def add_tracks(self, provider_playlist_id: str, track_ids):
+        normalized_ids = [str(track_id) for track_id in track_ids]
+        self.add_tracks_calls.append(
+            {"provider_playlist_id": provider_playlist_id, "track_ids": normalized_ids}
+        )
+        if len(normalized_ids) > 1 and any(
+            track_id in self.fail_add_chunk_for_track_ids for track_id in normalized_ids
+        ):
+            raise ProviderAPIError("chunk add failed")
+        if len(normalized_ids) == 1 and normalized_ids[0] in self.fail_add_single_for_track_ids:
+            raise ProviderAPIError("single add failed")
+
+        playlist_tracks = self.tracks_by_playlist_id.setdefault(provider_playlist_id, [])
+        existing_ids = {track.provider_track_id for track in playlist_tracks}
+        track_catalog = {track.provider_track_id: track for track in self.tracks}
+
+        for track_id in normalized_ids:
+            if track_id in existing_ids:
+                continue
+            template = track_catalog.get(
+                track_id,
+                ProviderTrack(
+                    provider_track_id=track_id,
+                    title=f"Track {track_id}",
+                    artist=None,
+                    genre=None,
+                    artwork_url=None,
+                    url=None,
+                ),
+            )
+            playlist_tracks.append(
+                ProviderTrack(
+                    provider_track_id=template.provider_track_id,
+                    title=template.title,
+                    artist=template.artist,
+                    genre=template.genre,
+                    artwork_url=template.artwork_url,
+                    url=template.url,
+                )
+            )
+            existing_ids.add(track_id)
         return None
 
     async def track_exists(self, provider_playlist_id: str, track_id: str) -> bool:
@@ -257,6 +325,71 @@ def votuna_playlist(db_session, user):
 def provider_stub(monkeypatch):
     from app.api.v1.routes import playlists as playlists_routes
     from app.api.v1.routes.votuna import common as votuna_common
+
+    DummyProvider.playlists = [
+        ProviderPlaylist(
+            provider="soundcloud",
+            provider_playlist_id="provider-1",
+            title="Provider Playlist",
+            description="Test playlist",
+            track_count=2,
+            is_public=True,
+        )
+    ]
+    DummyProvider.tracks = [
+        ProviderTrack(
+            provider_track_id="track-1",
+            title="Test Track",
+            artist="Artist",
+            genre="House",
+            artwork_url=None,
+            url="https://soundcloud.com/test/track-1",
+        ),
+        ProviderTrack(
+            provider_track_id="track-2",
+            title="Test Track Two",
+            artist="Artist Two",
+            genre="UKG",
+            artwork_url=None,
+            url="https://soundcloud.com/test/track-2",
+        ),
+    ]
+    DummyProvider.tracks_by_playlist_id = {
+        "provider-1": deepcopy(DummyProvider.tracks[:1]),
+        "provider-2": deepcopy(DummyProvider.tracks),
+        "source-1": deepcopy(DummyProvider.tracks),
+        "dest-1": deepcopy(DummyProvider.tracks[:1]),
+    }
+    DummyProvider.search_tracks_results = [
+        ProviderTrack(
+            provider_track_id="track-search-1",
+            title="Search Result One",
+            artist="Artist One",
+            genre="House",
+            artwork_url=None,
+            url="https://soundcloud.com/test/search-result-one",
+        ),
+        ProviderTrack(
+            provider_track_id="track-search-2",
+            title="Search Result Two",
+            artist="Artist Two",
+            genre="Techno",
+            artwork_url=None,
+            url="https://soundcloud.com/test/search-result-two",
+        ),
+    ]
+    DummyProvider.resolved_track = ProviderTrack(
+        provider_track_id="track-resolved-1",
+        title="Resolved Track",
+        artist="Resolved Artist",
+        genre="House",
+        artwork_url=None,
+        url="https://soundcloud.com/test/resolved-track",
+    )
+    DummyProvider.track_exists_value = False
+    DummyProvider.add_tracks_calls = []
+    DummyProvider.fail_add_chunk_for_track_ids = set()
+    DummyProvider.fail_add_single_for_track_ids = set()
 
     def _factory(provider: str, access_token: str):
         return DummyProvider(access_token)

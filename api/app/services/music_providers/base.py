@@ -31,6 +31,7 @@ class ProviderTrack:
     provider_track_id: str
     title: str
     artist: str | None = None
+    genre: str | None = None
     artwork_url: str | None = None
     url: str | None = None
 
