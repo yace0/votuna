@@ -119,7 +119,7 @@ export default function MergingBulkEditingSection({ management }: MergingBulkEdi
                     <select
                       value={playlists.otherPlaylist.selectedKey}
                       onChange={(event) => playlists.otherPlaylist.setSelectedKey(event.target.value)}
-                      className="w-full rounded-2xl border border-[color:rgb(var(--votuna-ink)/0.12)] bg-[rgba(var(--votuna-paper),0.9)] px-4 py-2 text-sm"
+                      className="votuna-select w-full rounded-2xl border border-[color:rgb(var(--votuna-ink)/0.12)] bg-[rgba(var(--votuna-paper),0.9)] px-4 py-2 text-sm text-[rgb(var(--votuna-ink))]"
                     >
                       <option value="">Select a destination playlist</option>
                       {playlists.otherPlaylist.options.map((option) => (
@@ -191,7 +191,7 @@ export default function MergingBulkEditingSection({ management }: MergingBulkEdi
                 <select
                   value={songScope.value}
                   onChange={(event) => songScope.setValue(event.target.value as typeof songScope.value)}
-                  className="w-full rounded-2xl border border-[color:rgb(var(--votuna-ink)/0.12)] bg-[rgba(var(--votuna-paper),0.9)] px-4 py-2 text-sm"
+                  className="votuna-select w-full rounded-2xl border border-[color:rgb(var(--votuna-ink)/0.12)] bg-[rgba(var(--votuna-paper),0.9)] px-4 py-2 text-sm text-[rgb(var(--votuna-ink))]"
                 >
                   <option value="all">All songs</option>
                   <option value="genre">Only specific genres</option>
