@@ -2,6 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
+import { queryKeys } from '@/constants/queryKeys'
 import { apiJsonOrNull } from '../lib/api'
 
 type ThemeSetting = 'light' | 'dark' | 'system'
@@ -37,7 +38,7 @@ export default function ThemeManager() {
   }, [])
 
   const settingsQuery = useQuery({
-    queryKey: ['userSettings'],
+    queryKey: queryKeys.userSettings,
     queryFn: () => apiJsonOrNull<UserSettings>('/api/v1/users/me/settings'),
     refetchInterval: 60_000,
     staleTime: 60_000,

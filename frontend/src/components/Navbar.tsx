@@ -2,21 +2,13 @@
 
 import { Menu } from '@headlessui/react'
 import { Button, Dialog, DialogPanel } from '@tremor/react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
-import { apiFetch, apiJsonOrNull, API_URL } from '../lib/api'
-
-type User = {
-  id?: number
-  email?: string | null
-  first_name?: string | null
-  last_name?: string | null
-  display_name?: string | null
-  avatar_url?: string | null
-  auth_provider?: string | null
-}
+import { currentUserQueryKey, useCurrentUser } from '@/hooks/useCurrentUser'
+import type { User } from '@/types/user'
+import { apiFetch, API_URL } from '../lib/api'
 
 /** Select the best display name for the current user. */
 function getDisplayName(user: User | null) {
@@ -44,12 +36,7 @@ export default function Navbar() {
   const router = useRouter()
   const queryClient = useQueryClient()
   const [loginOpen, setLoginOpen] = useState(false)
-  const userQuery = useQuery({
-    queryKey: ['currentUser'],
-    queryFn: () => apiJsonOrNull<User>('/api/v1/users/me'),
-    refetchInterval: 60_000,
-    staleTime: 30_000,
-  })
+  const userQuery = useCurrentUser()
   const user = userQuery.data ?? null
   const loading = userQuery.isLoading || userQuery.isFetching
 
@@ -87,7 +74,7 @@ export default function Navbar() {
   useEffect(() => {
     const handler = (event: Event) => {
       const detail = (event as CustomEvent<User | null>).detail
-      queryClient.setQueryData(['currentUser'], detail ?? null)
+      queryClient.setQueryData(currentUserQueryKey, detail ?? null)
     }
     window.addEventListener('votuna:user-updated', handler as EventListener)
     return () => window.removeEventListener('votuna:user-updated', handler as EventListener)

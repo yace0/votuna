@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
 
+import { queryKeys } from '@/constants/queryKeys'
 import { apiJson } from '@/lib/api'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 import type {
@@ -36,7 +37,7 @@ export function usePlaylistDetailPage(playlistId: string | undefined) {
   const currentUser = currentUserQuery.data ?? null
 
   const playlistQuery = useQuery({
-    queryKey: ['votunaPlaylist', playlistId],
+    queryKey: queryKeys.votunaPlaylist(playlistId),
     queryFn: () =>
       apiJson<VotunaPlaylist>(`/api/v1/votuna/playlists/${playlistId}`, { authRequired: true }),
     enabled: !!playlistId,
@@ -45,7 +46,7 @@ export function usePlaylistDetailPage(playlistId: string | undefined) {
   })
 
   const suggestionsQuery = useQuery({
-    queryKey: ['votunaSuggestions', playlistId],
+    queryKey: queryKeys.votunaSuggestions(playlistId),
     queryFn: () =>
       apiJson<Suggestion[]>(
         `/api/v1/votuna/playlists/${playlistId}/suggestions?status=pending`,
@@ -57,7 +58,7 @@ export function usePlaylistDetailPage(playlistId: string | undefined) {
   })
 
   const tracksQuery = useQuery({
-    queryKey: ['votunaTracks', playlistId],
+    queryKey: queryKeys.votunaTracks(playlistId),
     queryFn: () =>
       apiJson<ProviderTrack[]>(`/api/v1/votuna/playlists/${playlistId}/tracks`, {
         authRequired: true,
@@ -68,7 +69,7 @@ export function usePlaylistDetailPage(playlistId: string | undefined) {
   })
 
   const membersQuery = useQuery({
-    queryKey: ['votunaMembers', playlistId],
+    queryKey: queryKeys.votunaMembers(playlistId),
     queryFn: () =>
       apiJson<PlaylistMember[]>(`/api/v1/votuna/playlists/${playlistId}/members`, {
         authRequired: true,
@@ -112,6 +113,17 @@ export function usePlaylistDetailPage(playlistId: string | undefined) {
     })
   }, [settings])
 
+  const invalidatePlaylistQueries = async (includeMembers: boolean) => {
+    const keys = [
+      queryKeys.votunaSuggestions(playlistId),
+      queryKeys.votunaTracks(playlistId),
+    ] as const
+    const allKeys = includeMembers ? [...keys, queryKeys.votunaMembers(playlistId)] : keys
+    await Promise.all(
+      allKeys.map((queryKey) => queryClient.invalidateQueries({ queryKey })),
+    )
+  }
+
   const settingsMutation = useMutation({
     mutationFn: async (payload: PlaylistSettingsForm) => {
       return apiJson<PlaylistSettings>(`/api/v1/votuna/playlists/${playlistId}/settings`, {
@@ -122,7 +134,7 @@ export function usePlaylistDetailPage(playlistId: string | undefined) {
       })
     },
     onSuccess: (updated) => {
-      queryClient.setQueryData(['votunaPlaylist', playlistId], (prev: VotunaPlaylist | undefined) => {
+      queryClient.setQueryData(queryKeys.votunaPlaylist(playlistId), (prev: VotunaPlaylist | undefined) => {
         if (!prev) return prev
         return { ...prev, settings: updated }
       })
@@ -154,9 +166,7 @@ export function usePlaylistDetailPage(playlistId: string | undefined) {
         setLinkSuggestionUrl('')
       }
       setSuggestStatus('')
-      await queryClient.invalidateQueries({ queryKey: ['votunaSuggestions', playlistId] })
-      await queryClient.invalidateQueries({ queryKey: ['votunaMembers', playlistId] })
-      await queryClient.invalidateQueries({ queryKey: ['votunaTracks', playlistId] })
+      await invalidatePlaylistQueries(true)
     },
     onError: (error) => {
       const message = error instanceof Error ? error.message : 'Unable to add suggestion'
@@ -172,8 +182,7 @@ export function usePlaylistDetailPage(playlistId: string | undefined) {
       })
     },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['votunaSuggestions', playlistId] })
-      await queryClient.invalidateQueries({ queryKey: ['votunaTracks', playlistId] })
+      await invalidatePlaylistQueries(false)
     },
   })
 

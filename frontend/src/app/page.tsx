@@ -4,6 +4,7 @@ import { Button, Card, TextInput } from '@tremor/react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
 import { useMemo, useState } from 'react'
+import { queryKeys } from '@/constants/queryKeys'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 import { apiJson, ApiError } from '../lib/api'
 
@@ -97,7 +98,7 @@ export default function Home() {
   const user = userQuery.data ?? null
 
   const providerQuery = useQuery({
-    queryKey: ['providerPlaylists', 'soundcloud'],
+    queryKey: queryKeys.providerPlaylistsByProvider('soundcloud'),
     queryFn: () =>
       apiJson<ProviderPlaylist[]>('/api/v1/playlists/providers/soundcloud', { authRequired: true }),
     enabled: !!user?.id,
@@ -106,7 +107,7 @@ export default function Home() {
   })
 
   const votunaQuery = useQuery({
-    queryKey: ['votunaPlaylists'],
+    queryKey: queryKeys.votunaPlaylists,
     queryFn: () => apiJson<VotunaPlaylist[]>('/api/v1/votuna/playlists', { authRequired: true }),
     enabled: !!user?.id,
     refetchInterval: 30_000,
@@ -144,8 +145,8 @@ export default function Home() {
     },
     onSuccess: () => {
       setNewPlaylistTitle('')
-      queryClient.invalidateQueries({ queryKey: ['providerPlaylists'] })
-      queryClient.invalidateQueries({ queryKey: ['votunaPlaylists'] })
+      queryClient.invalidateQueries({ queryKey: queryKeys.providerPlaylistsRoot })
+      queryClient.invalidateQueries({ queryKey: queryKeys.votunaPlaylists })
     },
     onError: (error) => {
       const message = error instanceof Error ? error.message : 'Unable to create playlist'
@@ -170,8 +171,8 @@ export default function Home() {
       setEnabling((prev) => ({ ...prev, [playlist.provider_playlist_id]: true }))
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['providerPlaylists'] })
-      queryClient.invalidateQueries({ queryKey: ['votunaPlaylists'] })
+      queryClient.invalidateQueries({ queryKey: queryKeys.providerPlaylistsRoot })
+      queryClient.invalidateQueries({ queryKey: queryKeys.votunaPlaylists })
     },
     onError: (error) => {
       const message = error instanceof Error ? error.message : 'Unable to enable Votuna'

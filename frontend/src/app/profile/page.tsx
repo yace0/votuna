@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { useEffect, useRef, useState, type ChangeEvent } from 'react'
 
 import EditableProfileField from '@/components/profile/EditableProfileField'
+import { queryKeys } from '@/constants/queryKeys'
 import PageShell from '@/components/ui/PageShell'
 import PrimaryButton from '@/components/ui/PrimaryButton'
 import SectionEyebrow from '@/components/ui/SectionEyebrow'
@@ -48,7 +49,7 @@ export default function ProfilePage() {
   const user = userQuery.data ?? null
 
   const settingsQuery = useQuery({
-    queryKey: ['userSettings'],
+    queryKey: queryKeys.userSettings,
     queryFn: () => apiJson<UserSettings>('/api/v1/users/me/settings', { authRequired: true }),
     enabled: !!user?.id,
     refetchInterval: 60_000,
@@ -131,7 +132,7 @@ export default function ProfilePage() {
       })
     },
     onSuccess: (updated) => {
-      queryClient.setQueryData(['userSettings'], updated)
+      queryClient.setQueryData(queryKeys.userSettings, updated)
       localStorage.setItem(THEME_STORAGE_KEY, updated.theme)
       window.dispatchEvent(new CustomEvent('votuna:settings-updated', { detail: updated }))
     },

@@ -1,9 +1,10 @@
 import { useQuery } from '@tanstack/react-query'
 
+import { queryKeys } from '@/constants/queryKeys'
 import { apiJsonOrNull } from '@/lib/api'
 import type { User } from '@/types/user'
 
-export const currentUserQueryKey = ['currentUser'] as const
+export const currentUserQueryKey = queryKeys.currentUser
 
 export function useCurrentUser() {
   return useQuery({
