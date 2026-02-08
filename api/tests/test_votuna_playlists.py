@@ -1,8 +1,19 @@
 from datetime import datetime, timezone
+import uuid
 
+from app.crud.votuna_playlist_invite import votuna_playlist_invite_crud
+from app.crud.votuna_playlist_member import votuna_playlist_member_crud
 from app.crud.votuna_playlist_settings import votuna_playlist_settings_crud
 from app.crud.votuna_track_addition import votuna_track_addition_crud
 from app.crud.votuna_track_suggestion import votuna_track_suggestion_crud
+
+
+def _set_personal_mode(db_session, playlist) -> None:
+    for membership, _user in votuna_playlist_member_crud.list_members(db_session, playlist.id):
+        if membership.user_id == playlist.owner_user_id:
+            continue
+        db_session.delete(membership)
+    db_session.commit()
 
 
 def test_list_votuna_playlists(auth_client, votuna_playlist):
@@ -157,9 +168,9 @@ def test_list_votuna_tracks_includes_suggester(auth_client, db_session, votuna_p
     assert data[0]["provider_track_id"] == "track-1"
     assert data[0]["added_at"] is not None
     assert data[0]["added_source"] == "votuna_suggestion"
-    assert data[0]["added_by_label"] == f"Suggested by {user.display_name}"
+    assert data[0]["added_by_label"] == "Suggested by You"
     assert data[0]["suggested_by_user_id"] == user.id
-    assert data[0]["suggested_by_display_name"] == user.display_name
+    assert data[0]["suggested_by_display_name"] == "You"
 
 
 def test_list_votuna_tracks_uses_playlist_utils_provenance(auth_client, db_session, votuna_playlist, user, provider_stub):
@@ -324,3 +335,148 @@ def test_list_votuna_tracks_suggester_name_falls_back_to_provider_user_id(
     assert response.status_code == 200
     data = response.json()
     assert data[0]["suggested_by_display_name"] == provider_user_id
+
+
+def test_add_track_direct_personal_mode_success(auth_client, db_session, votuna_playlist, user, provider_stub):
+    _set_personal_mode(db_session, votuna_playlist)
+
+    response = auth_client.post(
+        f"/api/v1/votuna/playlists/{votuna_playlist.id}/tracks",
+        json={
+            "provider_track_id": "track-1",
+            "track_title": "Direct Track",
+            "track_artist": "Direct Artist",
+            "track_url": "https://soundcloud.com/test/track-1",
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["added_source"] == "personal_add"
+    assert data["added_by_label"] == "Added directly by You"
+
+    tracks_response = auth_client.get(f"/api/v1/votuna/playlists/{votuna_playlist.id}/tracks")
+    assert tracks_response.status_code == 200
+    tracks = tracks_response.json()
+    assert tracks[0]["added_source"] == "personal_add"
+    assert tracks[0]["added_by_label"] == "Added directly by You"
+    assert tracks[0]["added_at"] is not None
+
+
+def test_add_track_direct_non_owner_forbidden(other_auth_client, db_session, votuna_playlist):
+    _set_personal_mode(db_session, votuna_playlist)
+    response = other_auth_client.post(
+        f"/api/v1/votuna/playlists/{votuna_playlist.id}/tracks",
+        json={"provider_track_id": "track-1"},
+    )
+    assert response.status_code == 403
+
+
+def test_add_track_direct_collaborative_mode_conflict(auth_client, votuna_playlist):
+    response = auth_client.post(
+        f"/api/v1/votuna/playlists/{votuna_playlist.id}/tracks",
+        json={"provider_track_id": "track-1"},
+    )
+    assert response.status_code == 409
+    assert response.json()["detail"]["code"] == "COLLABORATIVE_PLAYLIST_DIRECT_ADD_DISABLED"
+
+
+def test_add_track_direct_duplicate_conflict(auth_client, db_session, votuna_playlist, provider_stub, monkeypatch):
+    _set_personal_mode(db_session, votuna_playlist)
+    monkeypatch.setattr(provider_stub, "track_exists_value", True)
+    response = auth_client.post(
+        f"/api/v1/votuna/playlists/{votuna_playlist.id}/tracks",
+        json={"provider_track_id": "track-1"},
+    )
+    assert response.status_code == 409
+    assert response.json()["detail"] == "Track already exists in playlist"
+
+
+def test_add_track_direct_from_url_resolves(auth_client, db_session, votuna_playlist, provider_stub):
+    _set_personal_mode(db_session, votuna_playlist)
+    response = auth_client.post(
+        f"/api/v1/votuna/playlists/{votuna_playlist.id}/tracks",
+        json={"track_url": "https://soundcloud.com/test/resolved-track"},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["provider_track_id"] == "track-resolved-1"
+    assert data["added_source"] == "personal_add"
+
+
+def test_personalize_playlist_owner_success(
+    auth_client,
+    db_session,
+    votuna_playlist,
+    user,
+):
+    collaborator_count = sum(
+        1
+        for membership, _ in votuna_playlist_member_crud.list_members(db_session, votuna_playlist.id)
+        if membership.user_id != votuna_playlist.owner_user_id
+    )
+    assert collaborator_count > 0
+
+    invite = votuna_playlist_invite_crud.create(
+        db_session,
+        {
+            "playlist_id": votuna_playlist.id,
+            "invite_type": "link",
+            "token": f"personalize-{uuid.uuid4().hex}",
+            "uses_count": 0,
+            "is_revoked": False,
+            "accepted_at": None,
+            "created_by_user_id": user.id,
+        },
+    )
+    suggestion = votuna_track_suggestion_crud.create(
+        db_session,
+        {
+            "playlist_id": votuna_playlist.id,
+            "provider_track_id": "track-personalize-pending",
+            "track_title": "Pending",
+            "suggested_by_user_id": user.id,
+            "status": "pending",
+        },
+    )
+
+    response = auth_client.post(f"/api/v1/votuna/playlists/{votuna_playlist.id}/personalize")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["playlist_type"] == "personal"
+    assert data["removed_collaborators"] == collaborator_count
+    assert data["revoked_invites"] == 1
+    assert data["canceled_suggestions"] == 1
+
+    updated_invite = votuna_playlist_invite_crud.get(db_session, invite.id)
+    assert updated_invite is not None
+    assert updated_invite.is_revoked is True
+
+    updated_suggestion = votuna_track_suggestion_crud.get(db_session, suggestion.id)
+    assert updated_suggestion is not None
+    assert updated_suggestion.status == "canceled"
+    assert updated_suggestion.resolution_reason == "canceled_by_owner"
+
+
+def test_personalize_playlist_non_owner_forbidden(other_auth_client, votuna_playlist):
+    response = other_auth_client.post(f"/api/v1/votuna/playlists/{votuna_playlist.id}/personalize")
+    assert response.status_code == 403
+
+
+def test_personalize_playlist_idempotent(auth_client, db_session, votuna_playlist):
+    _set_personal_mode(db_session, votuna_playlist)
+    response = auth_client.post(f"/api/v1/votuna/playlists/{votuna_playlist.id}/personalize")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["removed_collaborators"] == 0
+    assert data["revoked_invites"] == 0
+    assert data["canceled_suggestions"] == 0
+
+
+def test_update_settings_personal_mode_conflict(auth_client, db_session, votuna_playlist):
+    _set_personal_mode(db_session, votuna_playlist)
+    response = auth_client.patch(
+        f"/api/v1/votuna/playlists/{votuna_playlist.id}/settings",
+        json={"required_vote_percent": 75},
+    )
+    assert response.status_code == 409
+    assert response.json()["detail"]["code"] == "PERSONAL_PLAYLIST_SETTINGS_DISABLED"

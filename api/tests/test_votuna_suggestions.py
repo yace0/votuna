@@ -63,6 +63,16 @@ def test_create_and_list_suggestions(auth_client, votuna_playlist, provider_stub
     assert any(item["id"] == suggestion["id"] for item in data)
 
 
+def test_create_suggestion_personal_mode_conflict(auth_client, db_session, votuna_playlist, user):
+    _set_known_members(db_session, votuna_playlist, user.id, [])
+    response = auth_client.post(
+        f"/api/v1/votuna/playlists/{votuna_playlist.id}/suggestions",
+        json={"provider_track_id": "track-personal-conflict"},
+    )
+    assert response.status_code == 409
+    assert response.json()["detail"]["code"] == "PERSONAL_PLAYLIST_SUGGESTIONS_DISABLED"
+
+
 def test_search_tracks_for_suggestions(auth_client, votuna_playlist, provider_stub):
     response = auth_client.get(
         f"/api/v1/votuna/playlists/{votuna_playlist.id}/tracks/search",

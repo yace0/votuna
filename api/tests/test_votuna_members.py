@@ -39,8 +39,11 @@ def test_list_members_with_suggested_count(auth_client, db_session, votuna_playl
     assert response.status_code == 200
     data = response.json()
     counts = {member["user_id"]: member["suggested_count"] for member in data}
+    profile_urls = {member["user_id"]: member["profile_url"] for member in data}
     assert counts[user.id] == 2
     assert counts[other_user.id] == 1
+    assert profile_urls[user.id].startswith("https://soundcloud.com/")
+    assert profile_urls[other_user.id].startswith("https://soundcloud.com/")
 
 
 def test_list_members_non_member_forbidden(other_auth_client, votuna_playlist):

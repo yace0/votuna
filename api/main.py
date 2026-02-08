@@ -33,7 +33,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
-    description="Votuna API with PostgreSQL and SQLAlchemy",
+    description="Votuna API",
     version="1.0.0",
     lifespan=lifespan,
 )

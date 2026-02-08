@@ -2,7 +2,7 @@
 
 import { Tab, TabGroup, TabList, TabPanel, TabPanels } from '@tremor/react'
 import Link from 'next/link'
-import { useParams } from 'next/navigation'
+import { useParams, usePathname, useRouter, useSearchParams } from 'next/navigation'
 import CollaboratorsSection from '@/components/playlists/CollaboratorsSection'
 import NowPlayingDock from '@/components/playlists/NowPlayingDock'
 import PlaylistManagementSection from '@/components/playlists/PlaylistManagementSection'
@@ -15,10 +15,43 @@ import SectionEyebrow from '@/components/ui/SectionEyebrow'
 import SurfaceCard from '@/components/ui/SurfaceCard'
 import { usePlaylistDetailPage } from '@/lib/hooks/usePlaylistDetailPage'
 
+const TAB_KEYS = ['playlist', 'manage', 'settings'] as const
+type PlaylistTabKey = (typeof TAB_KEYS)[number]
+
+const isPlaylistTab = (value: string | null): value is PlaylistTabKey => {
+  return value !== null && TAB_KEYS.includes(value as PlaylistTabKey)
+}
+
 export default function PlaylistDetailPage() {
   const params = useParams()
+  const pathname = usePathname()
+  const router = useRouter()
+  const searchParams = useSearchParams()
   const playlistId = Array.isArray(params.id) ? params.id[0] : params.id
   const state = usePlaylistDetailPage(playlistId)
+  const tabParam = searchParams.get('tab')
+  const activeTab: PlaylistTabKey = isPlaylistTab(tabParam) ? tabParam : 'playlist'
+  const activeTabIndex = TAB_KEYS.indexOf(activeTab)
+
+  const buildTabHref = (tab: PlaylistTabKey) => {
+    const nextParams = new URLSearchParams(searchParams.toString())
+    if (tab === 'playlist') {
+      nextParams.delete('tab')
+    } else {
+      nextParams.set('tab', tab)
+    }
+    const query = nextParams.toString()
+    return query ? `${pathname}?${query}` : pathname
+  }
+
+  const handleTabChange = (index: number) => {
+    const tab = TAB_KEYS[index] ?? 'playlist'
+    const nextHref = buildTabHref(tab)
+    const currentQuery = searchParams.toString()
+    const currentHref = currentQuery ? `${pathname}?${currentQuery}` : pathname
+    if (nextHref === currentHref) return
+    router.push(nextHref, { scroll: false })
+  }
 
   if (state.isPlaylistLoading) {
     return (
@@ -69,7 +102,7 @@ export default function PlaylistDetailPage() {
           </Link>
         </div>
 
-        <TabGroup>
+        <TabGroup index={activeTabIndex} onIndexChange={handleTabChange}>
           <TabList className="rounded-full bg-[rgba(var(--votuna-paper),0.85)] p-1">
             <Tab className="rounded-full px-4 py-2 text-sm">Playlist</Tab>
             <Tab className="rounded-full px-4 py-2 text-sm">Manage</Tab>
@@ -78,7 +111,22 @@ export default function PlaylistDetailPage() {
           <TabPanels>
             <TabPanel>
               <div className="space-y-6">
+                {!state.isCollaborative ? (
+                  <SurfaceCard>
+                    <p className="text-sm text-[color:rgb(var(--votuna-ink)/0.7)]">
+                      No collaborators, invite someone in{' '}
+                      <Link
+                        href={buildTabHref('settings')}
+                        className="font-semibold underline underline-offset-2"
+                      >
+                        settings
+                      </Link>{' '}
+                      to turn this into a collaborative playlist
+                    </p>
+                  </SurfaceCard>
+                ) : null}
                 <SearchSuggestSection
+                  isCollaborative={state.isCollaborative}
                   searchQuery={state.searchQuery}
                   onSearchQueryChange={state.setSearchQuery}
                   onSearchTracks={state.searchTracks}
@@ -97,19 +145,21 @@ export default function PlaylistDetailPage() {
                   suggestStatus={state.suggestStatus}
                 />
 
-                <SuggestionsSection
-                  suggestions={state.suggestions}
-                  isLoading={state.isSuggestionsLoading}
-                  memberNameById={state.memberNameById}
-                  onPlayTrack={state.playTrack}
-                  onSetReaction={state.setReaction}
-                  isReactionPending={state.isReactionPending}
-                  onCancelSuggestion={state.cancelSuggestion}
-                  isCancelPending={state.isCancelSuggestionPending}
-                  onForceAddSuggestion={state.forceAddSuggestion}
-                  isForceAddPending={state.isForceAddPending}
-                  statusMessage={state.suggestionsActionStatus}
-                />
+                {state.isCollaborative ? (
+                  <SuggestionsSection
+                    suggestions={state.suggestions}
+                    isLoading={state.isSuggestionsLoading}
+                    memberNameById={state.memberNameById}
+                    onPlayTrack={state.playTrack}
+                    onSetReaction={state.setReaction}
+                    isReactionPending={state.isReactionPending}
+                    onCancelSuggestion={state.cancelSuggestion}
+                    isCancelPending={state.isCancelSuggestionPending}
+                    onForceAddSuggestion={state.forceAddSuggestion}
+                    isForceAddPending={state.isForceAddPending}
+                    statusMessage={state.suggestionsActionStatus}
+                  />
+                ) : null}
 
                 <TracksSection
                   tracks={state.tracks}
@@ -131,10 +181,14 @@ export default function PlaylistDetailPage() {
                 <PlaylistSettingsSection
                   requiredVotePercent={state.settingsForm.required_vote_percent}
                   tieBreakMode={state.settingsForm.tie_break_mode}
+                  playlistType={state.playlistType}
+                  collaboratorCount={state.collaboratorCount}
                   canEditSettings={state.canEditSettings}
                   isSaving={state.isSettingsSaving}
+                  isSwitchingToPersonal={state.isSwitchingToPersonal}
                   settingsStatus={state.settingsStatus}
                   onSaveSettings={state.saveSettings}
+                  onSwitchToPersonal={state.switchToPersonal}
                   onRequiredVotePercentChange={state.setRequiredVotePercent}
                   onTieBreakModeChange={state.setTieBreakMode}
                 />

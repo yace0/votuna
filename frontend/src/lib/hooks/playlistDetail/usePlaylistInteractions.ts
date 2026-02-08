@@ -1,5 +1,5 @@
 import { useMutation, type QueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import { apiFetch, apiJson, type ApiError } from '@/lib/api'
 import { queryKeys } from '@/lib/constants/queryKeys'
@@ -8,6 +8,7 @@ import type { ProviderTrack, Suggestion } from '@/lib/types/votuna'
 type UsePlaylistInteractionsArgs = {
   playlistId: string | undefined
   queryClient: QueryClient
+  isCollaborative: boolean
 }
 
 type SuggestPayload = {
@@ -30,7 +31,11 @@ function isRejectedTrackConflict(error: unknown): boolean {
   return error.message.toLowerCase().includes('previously rejected')
 }
 
-export function usePlaylistInteractions({ playlistId, queryClient }: UsePlaylistInteractionsArgs) {
+export function usePlaylistInteractions({
+  playlistId,
+  queryClient,
+  isCollaborative,
+}: UsePlaylistInteractionsArgs) {
   const [suggestStatus, setSuggestStatus] = useState('')
   const [suggestionsActionStatus, setSuggestionsActionStatus] = useState('')
   const [trackActionStatus, setTrackActionStatus] = useState('')
@@ -41,6 +46,11 @@ export function usePlaylistInteractions({ playlistId, queryClient }: UsePlaylist
   const [isSearching, setIsSearching] = useState(false)
   const [linkSuggestionUrl, setLinkSuggestionUrl] = useState('')
   const [removingTrackId, setRemovingTrackId] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (isCollaborative) return
+    setSuggestedSearchTrackIds([])
+  }, [isCollaborative])
 
   const invalidatePlaylistQueries = async (includeMembers: boolean) => {
     const keys = [
@@ -66,6 +76,25 @@ export function usePlaylistInteractions({ playlistId, queryClient }: UsePlaylist
       }
       setSuggestStatus('')
       await invalidatePlaylistQueries(true)
+    },
+  })
+
+  const directAddMutation = useMutation({
+    mutationFn: async (payload: SuggestPayload) => {
+      return apiJson<ProviderTrack>(`/api/v1/votuna/playlists/${playlistId}/tracks`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        authRequired: true,
+        body: JSON.stringify(payload),
+      })
+    },
+    onSuccess: async (_data, variables) => {
+      if (variables.track_url && !variables.provider_track_id) {
+        setLinkSuggestionUrl('')
+      }
+      setSuggestStatus('')
+      await queryClient.invalidateQueries({ queryKey: queryKeys.votunaTracks(playlistId) })
+      await queryClient.invalidateQueries({ queryKey: queryKeys.votunaMembers(playlistId) })
     },
   })
 
@@ -206,6 +235,17 @@ export function usePlaylistInteractions({ playlistId, queryClient }: UsePlaylist
     payload: SuggestPayload,
     options?: { optimisticProviderTrackId?: string },
   ) => {
+    if (!isCollaborative) {
+      setSuggestStatus('')
+      try {
+        await directAddMutation.mutateAsync(payload)
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unable to add track'
+        setSuggestStatus(message)
+      }
+      return
+    }
+
     const optimisticProviderTrackId = options?.optimisticProviderTrackId
     if (optimisticProviderTrackId) {
       markSearchTrackAsSuggested(optimisticProviderTrackId)
@@ -300,7 +340,7 @@ export function usePlaylistInteractions({ playlistId, queryClient }: UsePlaylist
     suggestStatus,
     suggestionsActionStatus,
     suggestFromSearch,
-    isSuggestPending: suggestMutation.isPending,
+    isSuggestPending: suggestMutation.isPending || directAddMutation.isPending,
     linkSuggestionUrl,
     setLinkSuggestionUrl,
     suggestFromLink,

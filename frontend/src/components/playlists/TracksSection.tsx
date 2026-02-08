@@ -116,16 +116,6 @@ export default function TracksSection({
                         Play
                       </Button>
                     ) : null}
-                    {track.url ? (
-                      <a
-                        href={track.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex w-24 justify-center rounded-full bg-[rgb(var(--votuna-ink))] px-4 py-2 text-xs font-semibold text-[rgb(var(--votuna-paper))] hover:bg-[color:rgb(var(--votuna-ink)/0.9)]"
-                      >
-                        Open
-                      </a>
-                    ) : null}
                     {canRemoveTracks ? (
                       <button
                         type="button"

@@ -76,6 +76,7 @@ def test_list_invites_owner_returns_active_invites(auth_client, db_session, votu
     assert user_invite["target_display_name"] == "Jaseline"
     assert user_invite["target_username"] == "jaseline"
     assert user_invite["target_avatar_url"] == "https://img.example/jaseline.jpg"
+    assert user_invite["target_profile_url"] == "https://soundcloud.com/jaseline"
 
 
 def test_list_invites_non_owner_forbidden(other_auth_client, votuna_playlist):
@@ -229,6 +230,7 @@ def test_create_user_invite_success_unregistered(auth_client, votuna_playlist, p
     assert data["invite_type"] == "user"
     assert data["target_provider_user_id"] == "provider-user-2"
     assert data["target_user_id"] is None
+    assert data["target_profile_url"].startswith("https://soundcloud.com/")
     assert provider_stub.get_user_calls == 1
 
 

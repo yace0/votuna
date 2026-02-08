@@ -81,9 +81,20 @@ export default function CollaboratorsSection({
                     fallbackClassName="h-8 w-8 rounded-full"
                   />
                   <div>
-                    <p className="text-sm font-semibold text-[rgb(var(--votuna-ink))]">
-                      {member.display_name || 'Unknown user'}
-                    </p>
+                    {member.profile_url ? (
+                      <a
+                        href={member.profile_url}
+                        target="_blank"
+                        rel="noreferrer noopener"
+                        className="text-sm font-semibold text-[rgb(var(--votuna-ink))] underline-offset-2 hover:underline"
+                      >
+                        {member.display_name || 'Unknown user'}
+                      </a>
+                    ) : (
+                      <p className="text-sm font-semibold text-[rgb(var(--votuna-ink))]">
+                        {member.display_name || 'Unknown user'}
+                      </p>
+                    )}
                     <p className="text-xs text-[color:rgb(var(--votuna-ink)/0.6)]">
                       Joined {new Date(member.joined_at).toLocaleDateString()}
                     </p>
@@ -141,7 +152,18 @@ export default function CollaboratorsSection({
                         fallbackClassName="h-8 w-8 rounded-full"
                       />
                       <div>
-                        <p className="text-sm font-semibold text-[rgb(var(--votuna-ink))]">{displayName}</p>
+                        {invite.target_profile_url ? (
+                          <a
+                            href={invite.target_profile_url}
+                            target="_blank"
+                            rel="noreferrer noopener"
+                            className="text-sm font-semibold text-[rgb(var(--votuna-ink))] underline-offset-2 hover:underline"
+                          >
+                            {displayName}
+                          </a>
+                        ) : (
+                          <p className="text-sm font-semibold text-[rgb(var(--votuna-ink))]">{displayName}</p>
+                        )}
                         <p className="text-xs text-[color:rgb(var(--votuna-ink)/0.6)]">
                           {handle ? `@${handle} • ` : ''}
                           Invited {new Date(invite.created_at).toLocaleDateString()}

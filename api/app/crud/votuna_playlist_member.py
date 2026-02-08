@@ -27,6 +27,21 @@ class VotunaPlaylistMemberCRUD(BaseCRUD[VotunaPlaylistMember, dict, dict]):
             .count()
         )
 
+    def count_non_owner_members(self, db: Session, playlist_id: int, owner_user_id: int) -> int:
+        """Count collaborators excluding the owner."""
+        return (
+            db.query(VotunaPlaylistMember)
+            .filter(
+                VotunaPlaylistMember.playlist_id == playlist_id,
+                VotunaPlaylistMember.user_id != owner_user_id,
+            )
+            .count()
+        )
+
+    def has_non_owner_members(self, db: Session, playlist_id: int, owner_user_id: int) -> bool:
+        """Return whether the playlist currently has collaborators."""
+        return self.count_non_owner_members(db, playlist_id, owner_user_id) > 0
+
     def list_members(
         self, db: Session, playlist_id: int
     ) -> list[tuple[VotunaPlaylistMember, User]]:

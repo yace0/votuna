@@ -3,12 +3,18 @@ import { useEffect, useState } from 'react'
 
 import { queryKeys } from '@/lib/constants/queryKeys'
 import { apiJson } from '@/lib/api'
-import type { PlaylistSettings, PlaylistSettingsForm, VotunaPlaylist } from '@/lib/types/votuna'
+import type {
+  PersonalizePlaylistResponse,
+  PlaylistSettings,
+  PlaylistSettingsForm,
+  VotunaPlaylist,
+} from '@/lib/types/votuna'
 
 type UsePlaylistSettingsArgs = {
   playlistId: string | undefined
   settings: PlaylistSettings | null | undefined
   canEditSettings: boolean
+  isCollaborative: boolean
   queryClient: QueryClient
 }
 
@@ -16,6 +22,7 @@ export function usePlaylistSettings({
   playlistId,
   settings,
   canEditSettings,
+  isCollaborative,
   queryClient,
 }: UsePlaylistSettingsArgs) {
   const [settingsForm, setSettingsForm] = useState<PlaylistSettingsForm>({
@@ -54,17 +61,48 @@ export function usePlaylistSettings({
     },
   })
 
+  const personalizeMutation = useMutation({
+    mutationFn: async () =>
+      apiJson<PersonalizePlaylistResponse>(`/api/v1/votuna/playlists/${playlistId}/personalize`, {
+        method: 'POST',
+        authRequired: true,
+      }),
+    onSuccess: async (result) => {
+      setSettingsStatus(
+        `Switched to personal playlist. Removed ${result.removed_collaborators} collaborators, revoked ${result.revoked_invites} invites, canceled ${result.canceled_suggestions} suggestions.`,
+      )
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.votunaPlaylist(playlistId) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.votunaMembers(playlistId) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.votunaInvites(playlistId) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.votunaSuggestions(playlistId) }),
+      ])
+    },
+    onError: (error) => {
+      const message = error instanceof Error ? error.message : 'Unable to switch playlist type'
+      setSettingsStatus(message)
+    },
+  })
+
   const saveSettings = () => {
-    if (!playlistId || !canEditSettings) return
+    if (!playlistId || !canEditSettings || !isCollaborative) return
     setSettingsStatus('')
     settingsMutation.mutate(settingsForm)
+  }
+
+  const switchToPersonal = () => {
+    if (!playlistId || !canEditSettings || !isCollaborative) return
+    setSettingsStatus('')
+    personalizeMutation.mutate()
   }
 
   return {
     settingsForm,
     settingsStatus,
     isSettingsSaving: settingsMutation.isPending,
+    isSwitchingToPersonal: personalizeMutation.isPending,
     saveSettings,
+    switchToPersonal,
     setRequiredVotePercent: (value: number) =>
       setSettingsForm((prev) => ({ ...prev, required_vote_percent: value })),
     setTieBreakMode: (value: 'add' | 'reject') =>

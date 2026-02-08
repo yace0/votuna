@@ -10,6 +10,8 @@ export type PlaylistSettingsForm = {
   tie_break_mode: 'add' | 'reject'
 }
 
+export type PlaylistType = 'personal' | 'collaborative'
+
 export type VotunaPlaylist = {
   id: number
   owner_user_id: number
@@ -63,10 +65,17 @@ export type ProviderTrack = {
   artwork_url?: string | null
   url?: string | null
   added_at?: string | null
-  added_source?: 'votuna_suggestion' | 'playlist_utils' | 'outside_votuna'
+  added_source?: 'votuna_suggestion' | 'playlist_utils' | 'outside_votuna' | 'personal_add'
   added_by_label?: string | null
   suggested_by_user_id?: number | null
   suggested_by_display_name?: string | null
+}
+
+export type PersonalizePlaylistResponse = {
+  playlist_type: 'personal'
+  removed_collaborators: number
+  revoked_invites: number
+  canceled_suggestions: number
 }
 
 export type ManagementProviderPlaylistRef = {
@@ -184,6 +193,7 @@ export type PlaylistMember = {
   user_id: number
   display_name?: string | null
   avatar_url?: string | null
+  profile_url?: string | null
   role: string
   joined_at: string
   suggested_count: number
@@ -226,6 +236,7 @@ export type PlaylistInvite = {
   target_display_name?: string | null
   target_username?: string | null
   target_avatar_url?: string | null
+  target_profile_url?: string | null
   target_user_id?: number | null
   accepted_by_user_id?: number | null
   accepted_at?: string | null

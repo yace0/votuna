@@ -62,12 +62,14 @@ def _to_invite_out(
     target_display_name: str | None = None,
     target_username: str | None = None,
     target_avatar_url: str | None = None,
+    target_profile_url: str | None = None,
 ) -> VotunaPlaylistInviteOut:
     payload = VotunaPlaylistInviteOut.model_validate(invite)
     payload.invite_url = invite_url
     payload.target_display_name = target_display_name
     payload.target_username = target_username
     payload.target_avatar_url = target_avatar_url
+    payload.target_profile_url = target_profile_url
     return payload
 
 
@@ -169,7 +171,7 @@ async def list_playlist_invites(
     playlist = require_owner(db, playlist_id, current_user.id)
     invites = votuna_playlist_invite_crud.list_active_for_playlist(db, playlist_id)
 
-    user_invite_profile: dict[int, tuple[str | None, str | None, str | None]] = {}
+    user_invite_profile: dict[int, tuple[str | None, str | None, str | None, str | None]] = {}
     user_invites = [
         invite
         for invite in invites
@@ -187,25 +189,38 @@ async def list_playlist_invites(
             handle = invite.target_username_snapshot or invite.target_provider_user_id
             display_name = None
             avatar_url = None
+            profile_url = _build_candidate_profile_url(
+                playlist.provider,
+                invite.target_provider_user_id or "",
+                handle,
+            )
             if client and invite.target_provider_user_id:
                 try:
                     provider_user = await client.get_user(invite.target_provider_user_id)
                     handle = provider_user.username or handle
                     display_name = provider_user.display_name or handle
                     avatar_url = provider_user.avatar_url
+                    profile_url = provider_user.profile_url or _build_candidate_profile_url(
+                        playlist.provider,
+                        invite.target_provider_user_id,
+                        provider_user.username,
+                    )
                 except (ProviderAuthError, ProviderAPIError, Exception):
                     pass
             if not display_name:
                 display_name = handle or "Invited user"
-            user_invite_profile[invite.id] = (display_name, handle, avatar_url)
+            user_invite_profile[invite.id] = (display_name, handle, avatar_url, profile_url)
 
     payloads: list[VotunaPlaylistInviteOut] = []
     for invite in invites:
         target_display_name = None
         target_username = None
         target_avatar_url = None
+        target_profile_url = None
         if invite.id in user_invite_profile:
-            target_display_name, target_username, target_avatar_url = user_invite_profile[invite.id]
+            target_display_name, target_username, target_avatar_url, target_profile_url = user_invite_profile[
+                invite.id
+            ]
         payloads.append(
             _to_invite_out(
                 invite,
@@ -213,6 +228,7 @@ async def list_playlist_invites(
                 target_display_name=target_display_name,
                 target_username=target_username,
                 target_avatar_url=target_avatar_url,
+                target_profile_url=target_profile_url,
             )
         )
     return payloads
@@ -278,7 +294,14 @@ async def create_invite(
         if existing_invite:
             try:
                 ensure_invite_is_active(existing_invite)
-                return _to_invite_out(existing_invite)
+                return _to_invite_out(
+                    existing_invite,
+                    target_profile_url=_build_candidate_profile_url(
+                        playlist.provider,
+                        existing_invite.target_provider_user_id or "",
+                        existing_invite.target_username_snapshot,
+                    ),
+                )
             except HTTPException:
                 # If stale, continue and create a fresh invite.
                 pass
@@ -340,6 +363,12 @@ async def create_invite(
             or target_provider_user_id,
             target_username=provider_user.username or target_provider_user_id,
             target_avatar_url=provider_user.avatar_url,
+            target_profile_url=provider_user.profile_url
+            or _build_candidate_profile_url(
+                playlist.provider,
+                target_provider_user_id,
+                provider_user.username,
+            ),
         )
 
     payload = payload if isinstance(payload, VotunaPlaylistInviteCreateLink) else VotunaPlaylistInviteCreateLink()

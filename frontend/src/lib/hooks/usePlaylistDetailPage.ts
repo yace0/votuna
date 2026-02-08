@@ -9,7 +9,13 @@ import { usePlaylistManagement } from '@/lib/hooks/playlistDetail/usePlaylistMan
 import { usePlaylistPlayer } from '@/lib/hooks/playlistDetail/usePlaylistPlayer'
 import { usePlaylistInvites } from '@/lib/hooks/playlistDetail/usePlaylistInvites'
 import { usePlaylistSettings } from '@/lib/hooks/playlistDetail/usePlaylistSettings'
-import type { PlaylistMember, ProviderTrack, Suggestion, VotunaPlaylist } from '@/lib/types/votuna'
+import type {
+  PlaylistMember,
+  PlaylistType,
+  ProviderTrack,
+  Suggestion,
+  VotunaPlaylist,
+} from '@/lib/types/votuna'
 
 export function usePlaylistDetailPage(playlistId: string | undefined) {
   const queryClient = useQueryClient()
@@ -78,6 +84,15 @@ export function usePlaylistDetailPage(playlistId: string | undefined) {
     return Boolean(playlist && currentUser?.id && playlist.owner_user_id === currentUser.id)
   }, [playlist, currentUser])
 
+  const collaboratorCount = useMemo(() => {
+    if (!playlist) return 0
+    return members.filter((member) => member.user_id !== playlist.owner_user_id).length
+  }, [members, playlist])
+
+  const hasLoadedMembers = membersQuery.data !== undefined
+  const isCollaborative = !hasLoadedMembers || collaboratorCount > 0
+  const playlistType: PlaylistType = isCollaborative ? 'collaborative' : 'personal'
+
   const memberNameById = useMemo(() => {
     const map = new Map<number, string>()
     for (const member of membersQuery.data ?? []) {
@@ -86,10 +101,7 @@ export function usePlaylistDetailPage(playlistId: string | undefined) {
       }
     }
     if (currentUser?.id) {
-      map.set(
-        currentUser.id,
-        currentUser.display_name || currentUser.first_name || currentUser.email || 'You',
-      )
+      map.set(currentUser.id, 'You')
     }
     return map
   }, [membersQuery.data, currentUser])
@@ -98,12 +110,14 @@ export function usePlaylistDetailPage(playlistId: string | undefined) {
     playlistId,
     settings,
     canEditSettings,
+    isCollaborative,
     queryClient,
   })
 
   const interactionState = usePlaylistInteractions({
     playlistId,
     queryClient,
+    isCollaborative,
   })
 
   const playerState = usePlaylistPlayer()
@@ -132,6 +146,9 @@ export function usePlaylistDetailPage(playlistId: string | undefined) {
     members,
     isMembersLoading: membersQuery.isLoading,
     canEditSettings,
+    collaboratorCount,
+    isCollaborative,
+    playlistType,
     memberNameById,
     pendingSuggestionTrackIds,
     inPlaylistTrackIds,

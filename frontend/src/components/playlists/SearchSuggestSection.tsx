@@ -9,6 +9,7 @@ import SurfaceCard from '@/components/ui/SurfaceCard'
 import TrackArtwork from './TrackArtwork'
 
 type SearchSuggestSectionProps = {
+  isCollaborative: boolean
   searchQuery: string
   onSearchQueryChange: (value: string) => void
   onSearchTracks: () => void
@@ -28,6 +29,7 @@ type SearchSuggestSectionProps = {
 }
 
 export default function SearchSuggestSection({
+  isCollaborative,
   searchQuery,
   onSearchQueryChange,
   onSearchTracks,
@@ -54,9 +56,11 @@ export default function SearchSuggestSection({
   return (
     <SurfaceCard>
       <div>
-        <SectionEyebrow>Find and suggest tracks</SectionEyebrow>
+        <SectionEyebrow>{isCollaborative ? 'Find and suggest tracks' : 'Find and add tracks'}</SectionEyebrow>
         <p className="mt-2 text-sm text-[color:rgb(var(--votuna-ink)/0.7)]">
-          Search by track name, play the track, and suggest it to the vote queue.
+          {isCollaborative
+            ? 'Search by track name, play the track, and suggest it to the vote queue.'
+            : 'Search by track name, play the track, and add it directly to your playlist.'}
         </p>
       </div>
 
@@ -141,7 +145,7 @@ export default function SearchSuggestSection({
                     >
                       In playlist
                     </Button>
-                  ) : isTrackSuggested(track.provider_track_id) ? (
+                  ) : isCollaborative && isTrackSuggested(track.provider_track_id) ? (
                     <Button
                       disabled
                       variant="secondary"
@@ -155,7 +159,7 @@ export default function SearchSuggestSection({
                       disabled={isSuggestPending}
                       className="w-24 justify-center"
                     >
-                      Suggest
+                      {isCollaborative ? 'Suggest' : 'Add'}
                     </PrimaryButton>
                   )}
                 </div>
@@ -167,7 +171,7 @@ export default function SearchSuggestSection({
 
       <div className="mt-6 border-t border-[color:rgb(var(--votuna-ink)/0.08)] pt-5">
         <p className="text-xs uppercase tracking-[0.22em] text-[color:rgb(var(--votuna-ink)/0.45)]">
-          Suggest directly from link
+          {isCollaborative ? 'Suggest directly from link' : 'Add directly from link'}
         </p>
         <form
           className="mt-3 flex flex-wrap items-center gap-3"
@@ -188,7 +192,7 @@ export default function SearchSuggestSection({
             type="submit"
             disabled={isSuggestPending || !linkSuggestionUrl.trim()}
           >
-            {isSuggestPending ? 'Adding...' : 'Suggest from link'}
+            {isSuggestPending ? 'Adding...' : isCollaborative ? 'Suggest from link' : 'Add from link'}
           </PrimaryButton>
         </form>
       </div>

@@ -7,12 +7,16 @@ from app.auth.dependencies import get_current_user
 from app.db.session import get_db
 from app.models.user import User
 from app.models.votuna_playlist import VotunaPlaylist
+from app.models.votuna_invites import VotunaPlaylistInvite
+from app.models.votuna_members import VotunaPlaylistMember
 from app.models.votuna_suggestions import VotunaTrackSuggestion
 from app.schemas.votuna_playlist import (
+    ProviderTrackAddRequest,
     ProviderTrackOut,
     VotunaPlaylistCreate,
     VotunaPlaylistDetail,
     VotunaPlaylistOut,
+    VotunaPlaylistPersonalizeOut,
 )
 from app.schemas.votuna_playlist_settings import (
     VotunaPlaylistSettingsOut,
@@ -27,12 +31,16 @@ from app.api.v1.routes.votuna.common import (
     get_owner_client,
     get_playlist_or_404,
     get_provider_client,
+    has_collaborators,
     raise_provider_auth,
     require_member,
     require_owner,
 )
 
 router = APIRouter()
+
+PERSONAL_SETTINGS_ERROR_CODE = "PERSONAL_PLAYLIST_SETTINGS_DISABLED"
+COLLABORATIVE_DIRECT_ADD_ERROR_CODE = "COLLABORATIVE_PLAYLIST_DIRECT_ADD_DISABLED"
 
 
 def _display_name(user: User) -> str:
@@ -156,7 +164,15 @@ def update_votuna_settings(
     current_user: User = Depends(get_current_user),
 ):
     """Update settings for a Votuna playlist."""
-    require_owner(db, playlist_id, current_user.id)
+    playlist = require_owner(db, playlist_id, current_user.id)
+    if not has_collaborators(db, playlist):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": PERSONAL_SETTINGS_ERROR_CODE,
+                "message": "Voting settings are disabled for personal playlists",
+            },
+        )
     settings = votuna_playlist_settings_crud.get_by_playlist_id(db, playlist_id)
     if not settings:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Settings not found")
@@ -191,6 +207,161 @@ async def sync_votuna_playlist(
         },
     )
     return updated
+
+
+@router.post("/playlists/{playlist_id}/tracks", response_model=ProviderTrackOut)
+async def add_votuna_track(
+    playlist_id: int,
+    payload: ProviderTrackAddRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Add a track directly to a personal playlist (owner only)."""
+    playlist = require_owner(db, playlist_id, current_user.id)
+    if has_collaborators(db, playlist):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": COLLABORATIVE_DIRECT_ADD_ERROR_CODE,
+                "message": "Direct add is disabled for collaborative playlists",
+            },
+        )
+
+    client = get_owner_client(db, playlist)
+    provider_track_id = (payload.provider_track_id or "").strip()
+    track_title = payload.track_title
+    track_artist = payload.track_artist
+    track_artwork_url = payload.track_artwork_url
+    track_url = (payload.track_url or "").strip() or None
+
+    if not provider_track_id and not track_url:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Either provider_track_id or track_url is required",
+        )
+
+    if track_url and not provider_track_id:
+        try:
+            resolved_track = await client.resolve_track_url(track_url)
+        except ProviderAuthError:
+            raise_provider_auth(current_user, owner_id=playlist.owner_user_id)
+        except ProviderAPIError as exc:
+            if exc.status_code in {400, 404}:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+
+        provider_track_id = resolved_track.provider_track_id
+        track_title = track_title or resolved_track.title
+        track_artist = track_artist or resolved_track.artist
+        track_artwork_url = track_artwork_url or resolved_track.artwork_url
+        track_url = resolved_track.url or track_url
+
+    try:
+        if await client.track_exists(playlist.provider_playlist_id, provider_track_id):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Track already exists in playlist",
+            )
+    except ProviderAuthError:
+        raise_provider_auth(current_user, owner_id=playlist.owner_user_id)
+    except ProviderAPIError:
+        # If duplicate check fails, continue with add to avoid blocking the owner.
+        pass
+    except HTTPException:
+        raise
+
+    try:
+        await client.add_tracks(playlist.provider_playlist_id, [provider_track_id])
+    except ProviderAuthError:
+        raise_provider_auth(current_user, owner_id=playlist.owner_user_id)
+    except ProviderAPIError as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+
+    now = datetime.now(timezone.utc)
+    votuna_track_addition_crud.create(
+        db,
+        {
+            "playlist_id": playlist.id,
+            "provider_track_id": provider_track_id,
+            "source": "personal_add",
+            "added_at": now,
+            "added_by_user_id": current_user.id,
+            "suggestion_id": None,
+        },
+    )
+
+    return ProviderTrackOut(
+        provider_track_id=provider_track_id,
+        title=track_title or provider_track_id,
+        artist=track_artist,
+        artwork_url=track_artwork_url,
+        url=track_url,
+        added_at=now,
+        added_source="personal_add",
+        added_by_label="Added directly by You",
+        suggested_by_user_id=None,
+        suggested_by_display_name=None,
+    )
+
+
+@router.post("/playlists/{playlist_id}/personalize", response_model=VotunaPlaylistPersonalizeOut)
+def personalize_playlist(
+    playlist_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Convert a collaborative playlist back to personal mode."""
+    playlist = require_owner(db, playlist_id, current_user.id)
+    now = datetime.now(timezone.utc)
+
+    collaborator_rows = (
+        db.query(VotunaPlaylistMember)
+        .filter(
+            VotunaPlaylistMember.playlist_id == playlist_id,
+            VotunaPlaylistMember.user_id != playlist.owner_user_id,
+        )
+        .all()
+    )
+    for row in collaborator_rows:
+        db.delete(row)
+    removed_collaborators = len(collaborator_rows)
+
+    invite_rows = (
+        db.query(VotunaPlaylistInvite)
+        .filter(
+            VotunaPlaylistInvite.playlist_id == playlist_id,
+            VotunaPlaylistInvite.accepted_at.is_(None),
+            VotunaPlaylistInvite.is_revoked.is_(False),
+        )
+        .all()
+    )
+    for invite in invite_rows:
+        invite.is_revoked = True
+    revoked_invites = len(invite_rows)
+
+    pending_suggestions = (
+        db.query(VotunaTrackSuggestion)
+        .filter(
+            VotunaTrackSuggestion.playlist_id == playlist_id,
+            VotunaTrackSuggestion.status == "pending",
+        )
+        .all()
+    )
+    for suggestion in pending_suggestions:
+        suggestion.status = "canceled"
+        suggestion.resolved_at = now
+        suggestion.resolved_by_user_id = current_user.id
+        suggestion.resolution_reason = "canceled_by_owner"
+    canceled_suggestions = len(pending_suggestions)
+
+    db.commit()
+
+    return VotunaPlaylistPersonalizeOut(
+        playlist_type="personal",
+        removed_collaborators=removed_collaborators,
+        revoked_invites=revoked_invites,
+        canceled_suggestions=canceled_suggestions,
+    )
 
 
 @router.get("/playlists/{playlist_id}/tracks", response_model=list[ProviderTrackOut])
@@ -233,7 +404,11 @@ async def list_votuna_tracks(
         for suggestion, suggested_by_user in suggestion_rows:
             if suggestion.provider_track_id in suggestion_lookup:
                 continue
-            suggested_by_name = _display_name(suggested_by_user) if suggested_by_user else None
+            suggested_by_name = (
+                "You"
+                if suggestion.suggested_by_user_id == current_user.id
+                else (_display_name(suggested_by_user) if suggested_by_user else None)
+            )
             suggestion_lookup[suggestion.provider_track_id] = (
                 suggestion.suggested_by_user_id,
                 suggested_by_name,
@@ -281,9 +456,13 @@ async def list_votuna_tracks(
                 f"Suggested by {legacy_suggestion[1]}"
                 if legacy_suggestion[1]
                 else (
-                    "Suggested by a former member"
-                    if legacy_suggestion[0]
-                    else "Suggested via Votuna"
+                    "Suggested by You"
+                    if legacy_suggestion[0] == current_user.id
+                    else (
+                        "Suggested by a former member"
+                        if legacy_suggestion[0]
+                        else "Suggested via Votuna"
+                    )
                 )
             )
         else:
@@ -297,6 +476,16 @@ async def list_votuna_tracks(
                 suggested_by_user_id = None
                 suggested_by_display_name = None
                 added_by_label = "Added by playlist utils"
+            elif addition.source == "personal_add":
+                added_source = "personal_add"
+                suggested_by_user_id = None
+                suggested_by_display_name = None
+                if addition.added_by_user_id == current_user.id:
+                    added_by_label = "Added directly by You"
+                elif addition.added_by_user_id and addition.added_by_user_id in users_by_id:
+                    added_by_label = f"Added directly by {_display_name(users_by_id[addition.added_by_user_id])}"
+                else:
+                    added_by_label = "Added directly"
             elif addition.source == "suggestion":
                 added_source = "votuna_suggestion"
                 suggestion = (
@@ -307,17 +496,25 @@ async def list_votuna_tracks(
                 if suggestion:
                     suggested_by_user_id = suggestion.suggested_by_user_id
                     suggested_by_display_name = (
-                        _display_name(users_by_id[suggestion.suggested_by_user_id])
-                        if suggestion.suggested_by_user_id in users_by_id
-                        else None
+                        "You"
+                        if suggestion.suggested_by_user_id == current_user.id
+                        else (
+                            _display_name(users_by_id[suggestion.suggested_by_user_id])
+                            if suggestion.suggested_by_user_id in users_by_id
+                            else None
+                        )
                     )
                 added_by_label = (
                     f"Suggested by {suggested_by_display_name}"
                     if suggested_by_display_name
                     else (
-                        "Suggested by a former member"
-                        if suggested_by_user_id
-                        else "Suggested via Votuna"
+                        "Suggested by You"
+                        if suggested_by_user_id == current_user.id
+                        else (
+                            "Suggested by a former member"
+                            if suggested_by_user_id
+                            else "Suggested via Votuna"
+                        )
                     )
                 )
 

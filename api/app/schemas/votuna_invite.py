@@ -46,6 +46,7 @@ class VotunaPlaylistInviteOut(BaseModel):
     target_display_name: str | None = None
     target_username: str | None = None
     target_avatar_url: str | None = None
+    target_profile_url: str | None = None
     target_user_id: int | None = None
     accepted_by_user_id: int | None = None
     accepted_at: datetime | None = None

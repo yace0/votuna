@@ -24,6 +24,7 @@ from app.services.music_providers import ProviderAPIError, ProviderAuthError
 from app.api.v1.routes.votuna.common import (
     get_owner_client,
     get_playlist_or_404,
+    has_collaborators,
     raise_provider_auth,
     require_member,
     require_owner,
@@ -32,6 +33,7 @@ from app.api.v1.routes.votuna.common import (
 router = APIRouter()
 
 REJECTED_TRACK_ERROR_CODE = "TRACK_PREVIOUSLY_REJECTED"
+PERSONAL_SUGGESTIONS_ERROR_CODE = "PERSONAL_PLAYLIST_SUGGESTIONS_DISABLED"
 
 
 def _display_name(user: User) -> str:
@@ -311,6 +313,14 @@ async def create_suggestion(
     """Suggest a track for a playlist."""
     playlist = get_playlist_or_404(db, playlist_id)
     require_member(db, playlist_id, current_user.id)
+    if not has_collaborators(db, playlist):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": PERSONAL_SUGGESTIONS_ERROR_CODE,
+                "message": "Suggestions are disabled for personal playlists",
+            },
+        )
     client = get_owner_client(db, playlist)
     provider_track_id = (payload.provider_track_id or "").strip()
     track_title = payload.track_title

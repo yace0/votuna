@@ -31,6 +31,15 @@ def require_owner(db: Session, playlist_id: int, user_id: int) -> VotunaPlaylist
     return playlist
 
 
+def has_collaborators(db: Session, playlist: VotunaPlaylist) -> bool:
+    """Return whether the playlist has any non-owner collaborators."""
+    return votuna_playlist_member_crud.has_non_owner_members(
+        db,
+        playlist.id,
+        playlist.owner_user_id,
+    )
+
+
 def get_provider_client(provider: str, user: User):
     if not user.access_token:
         raise HTTPException(

@@ -13,7 +13,7 @@ const spaceGrotesk = Space_Grotesk({
 
 export const metadata: Metadata = {
   title: 'Votuna',
-  description: 'Votuna - Voting Platform',
+  description: 'Votuna is a collaborative playlist platform that allows users to create and share playlists with friends.',
   icons: {
     icon: '/img/logo.png',
     shortcut: '/img/logo.png',
