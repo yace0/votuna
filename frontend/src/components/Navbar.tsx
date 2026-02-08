@@ -101,7 +101,7 @@ export default function Navbar() {
             width={80}
             height={80}
             priority
-            className="object-contain"
+            className="h-20 w-20 object-contain"
           />
           <span className="text-[rgb(var(--votuna-ink))]">Votuna</span>
         </Link>

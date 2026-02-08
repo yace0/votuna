@@ -75,13 +75,13 @@ export default function SuggestionsSection({
                         {suggestion.track_title || 'Untitled track'}
                       </p>
                     )}
-                    <p className="mt-1 text-xs text-[color:rgb(var(--votuna-ink)/0.6)]">
+                    <div className="mt-1 text-xs text-[color:rgb(var(--votuna-ink)/0.6)]">
                       {suggestion.track_artist || 'Unknown artist'} -{' '}
                       <VoteCountWithTooltip
                         voteCount={suggestion.vote_count}
                         voters={suggestion.voter_display_names}
                       />
-                    </p>
+                    </div>
                   </div>
                 </div>
                 <div className="flex w-full items-center justify-between gap-3 text-right sm:w-auto sm:justify-end">
