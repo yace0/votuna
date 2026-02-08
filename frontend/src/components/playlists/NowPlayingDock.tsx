@@ -4,7 +4,6 @@ import TrackArtwork from './TrackArtwork'
 
 type NowPlayingDockProps = {
   track: PlayerTrack
-  playerNonce: number
   onClose: () => void
 }
 
@@ -16,7 +15,7 @@ const buildSoundcloudEmbedUrl = (
   return `https://w.soundcloud.com/player/?url=${encodeURIComponent(trackUrl)}&auto_play=${autoPlay ? 'true' : 'false'}&hide_related=true&show_comments=false&show_user=true&show_reposts=false&visual=false`
 }
 
-export default function NowPlayingDock({ track, playerNonce, onClose }: NowPlayingDockProps) {
+export default function NowPlayingDock({ track, onClose }: NowPlayingDockProps) {
   return (
     <div className="fixed bottom-4 left-1/2 z-40 w-[min(940px,calc(100%-1.5rem))] -translate-x-1/2">
       <div className="rounded-2xl border border-[color:rgb(var(--votuna-ink)/0.12)] bg-[rgba(var(--votuna-paper),0.98)] p-3 shadow-2xl shadow-black/25 backdrop-blur-sm">
@@ -54,7 +53,6 @@ export default function NowPlayingDock({ track, playerNonce, onClose }: NowPlayi
           </div>
         </div>
         <iframe
-          key={`${track.key}-${playerNonce}`}
           title={`Now playing ${track.title}`}
           src={buildSoundcloudEmbedUrl(track.url, true)}
           className="mt-3 h-24 w-full rounded-xl border-0"

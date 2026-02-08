@@ -4,7 +4,6 @@ import type { PlayerTrack, TrackPlayRequest } from '@/lib/types/votuna'
 
 export function usePlaylistPlayer() {
   const [activePlayerTrack, setActivePlayerTrack] = useState<PlayerTrack | null>(null)
-  const [playerNonce, setPlayerNonce] = useState(0)
 
   const playTrack = ({ key, title, artist, url, artworkUrl }: TrackPlayRequest) => {
     if (!url) return
@@ -15,7 +14,6 @@ export function usePlaylistPlayer() {
       url,
       artwork_url: artworkUrl,
     })
-    setPlayerNonce((prev) => prev + 1)
   }
 
   const closePlayer = () => {
@@ -25,7 +23,6 @@ export function usePlaylistPlayer() {
   return {
     playTrack,
     activePlayerTrack,
-    playerNonce,
     closePlayer,
   }
 }

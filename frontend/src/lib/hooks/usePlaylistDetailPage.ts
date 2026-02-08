@@ -17,10 +17,18 @@ import type {
   VotunaPlaylist,
 } from '@/lib/types/votuna'
 
-export function usePlaylistDetailPage(playlistId: string | undefined) {
+type PlaylistDetailTab = 'playlist' | 'manage' | 'settings'
+
+export function usePlaylistDetailPage(
+  playlistId: string | undefined,
+  activeTab: PlaylistDetailTab = 'playlist',
+) {
   const queryClient = useQueryClient()
   const currentUserQuery = useCurrentUser()
   const currentUser = currentUserQuery.data ?? null
+  const isPlaylistTabActive = activeTab === 'playlist'
+  const isManageTabActive = activeTab === 'manage'
+  const isSettingsTabActive = activeTab === 'settings'
 
   const playlistQuery = useQuery({
     queryKey: queryKeys.votunaPlaylist(playlistId),
@@ -38,7 +46,7 @@ export function usePlaylistDetailPage(playlistId: string | undefined) {
         `/api/v1/votuna/playlists/${playlistId}/suggestions?status=pending`,
         { authRequired: true },
       ),
-    enabled: !!playlistId,
+    enabled: Boolean(playlistId && isPlaylistTabActive),
     refetchInterval: 10_000,
     staleTime: 5_000,
   })
@@ -49,7 +57,7 @@ export function usePlaylistDetailPage(playlistId: string | undefined) {
       apiJson<ProviderTrack[]>(`/api/v1/votuna/playlists/${playlistId}/tracks`, {
         authRequired: true,
       }),
-    enabled: !!playlistId,
+    enabled: Boolean(playlistId && isPlaylistTabActive),
     refetchInterval: 30_000,
     staleTime: 10_000,
   })
@@ -60,16 +68,25 @@ export function usePlaylistDetailPage(playlistId: string | undefined) {
       apiJson<PlaylistMember[]>(`/api/v1/votuna/playlists/${playlistId}/members`, {
         authRequired: true,
       }),
-    enabled: !!playlistId,
+    enabled: Boolean(playlistId && (isPlaylistTabActive || isSettingsTabActive)),
     refetchInterval: 30_000,
     staleTime: 10_000,
   })
 
   const playlist = playlistQuery.data ?? null
   const settings = playlist?.settings ?? null
-  const suggestions = useMemo(() => suggestionsQuery.data ?? [], [suggestionsQuery.data])
-  const tracks = useMemo(() => tracksQuery.data ?? [], [tracksQuery.data])
-  const members = useMemo(() => membersQuery.data ?? [], [membersQuery.data])
+  const suggestions = useMemo(
+    () => (isPlaylistTabActive ? suggestionsQuery.data ?? [] : []),
+    [isPlaylistTabActive, suggestionsQuery.data],
+  )
+  const tracks = useMemo(
+    () => (isPlaylistTabActive ? tracksQuery.data ?? [] : []),
+    [isPlaylistTabActive, tracksQuery.data],
+  )
+  const members = useMemo(
+    () => (isPlaylistTabActive || isSettingsTabActive ? membersQuery.data ?? [] : []),
+    [isPlaylistTabActive, isSettingsTabActive, membersQuery.data],
+  )
 
   const pendingSuggestionTrackIds = useMemo(
     () => suggestions.map((suggestion) => suggestion.provider_track_id),
@@ -125,14 +142,14 @@ export function usePlaylistDetailPage(playlistId: string | undefined) {
   const managementState = usePlaylistManagement({
     playlistId,
     playlist,
-    canManage: canEditSettings,
+    canManage: canEditSettings && isManageTabActive,
     currentUserId: currentUser?.id,
     queryClient,
   })
 
   const inviteState = usePlaylistInvites({
     playlistId,
-    canInvite: canEditSettings,
+    canInvite: canEditSettings && isSettingsTabActive,
     queryClient,
   })
 

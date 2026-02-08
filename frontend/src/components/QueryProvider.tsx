@@ -8,6 +8,7 @@ const defaultOptions = {
     refetchOnWindowFocus: true,
     retry: 1,
     staleTime: 10_000,
+    gcTime: 120_000,
   },
 }
 

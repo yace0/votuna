@@ -1,5 +1,6 @@
 import { Button } from '@tremor/react'
 import { RiCloseLine } from '@remixicon/react'
+import { useEffect, useMemo, useState } from 'react'
 
 import type { ProviderTrack, TrackPlayRequest } from '@/lib/types/votuna'
 import SectionEyebrow from '@/components/ui/SectionEyebrow'
@@ -28,6 +29,9 @@ const formatAddedDate = (addedAt: string | null | undefined) => {
 const destructiveActionButtonClass =
   'inline-flex h-10 w-10 items-center justify-center rounded-full border border-rose-200 text-rose-600 transition hover:border-rose-300 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60'
 
+const INITIAL_VISIBLE_TRACKS = 80
+const VISIBLE_TRACKS_STEP = 80
+
 export default function TracksSection({
   tracks,
   isLoading,
@@ -38,6 +42,15 @@ export default function TracksSection({
   removingTrackId,
   statusMessage,
 }: TracksSectionProps) {
+  const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE_TRACKS)
+
+  useEffect(() => {
+    setVisibleCount(Math.min(INITIAL_VISIBLE_TRACKS, tracks.length))
+  }, [tracks.length])
+
+  const visibleTracks = useMemo(() => tracks.slice(0, visibleCount), [tracks, visibleCount])
+  const remainingCount = Math.max(0, tracks.length - visibleCount)
+
   return (
     <SurfaceCard>
       <div className="flex items-center justify-between">
@@ -55,7 +68,7 @@ export default function TracksSection({
         <p className="mt-4 text-sm text-[color:rgb(var(--votuna-ink)/0.6)]">No tracks found.</p>
       ) : (
         <div className="mt-4 space-y-3">
-          {tracks.map((track) => (
+          {visibleTracks.map((track) => (
             <div
               key={track.provider_track_id}
               className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-[color:rgb(var(--votuna-ink)/0.08)] bg-[rgba(var(--votuna-paper),0.8)] px-4 py-3"
@@ -144,6 +157,17 @@ export default function TracksSection({
               </div>
             </div>
           ))}
+          {remainingCount > 0 ? (
+            <div className="flex justify-center pt-2">
+              <Button
+                variant="secondary"
+                onClick={() => setVisibleCount((prev) => Math.min(tracks.length, prev + VISIBLE_TRACKS_STEP))}
+                className="rounded-full"
+              >
+                Show {Math.min(VISIBLE_TRACKS_STEP, remainingCount)} more
+              </Button>
+            </div>
+          ) : null}
         </div>
       )}
       {statusMessage ? <p className="mt-3 text-xs text-rose-500">{statusMessage}</p> : null}
