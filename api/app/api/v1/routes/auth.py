@@ -4,7 +4,7 @@ from typing import Any, cast
 from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
-from fastapi.responses import RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
 from app.auth.jwt import create_access_token
@@ -206,7 +206,14 @@ async def callback_provider(
 
 
 @router.post("/logout")
-async def logout(response: Response):
+async def logout():
     """Clear the auth cookie for the current session."""
-    response.delete_cookie(settings.AUTH_COOKIE_NAME)
-    return {"status": "logged_out"}
+    response = JSONResponse({"status": "logged_out"})
+    response.delete_cookie(
+        settings.AUTH_COOKIE_NAME,
+        path="/",
+        httponly=True,
+        secure=settings.AUTH_COOKIE_SECURE,
+        samesite=settings.AUTH_COOKIE_SAMESITE,
+    )
+    return response

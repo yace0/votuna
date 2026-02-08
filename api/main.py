@@ -50,6 +50,7 @@ async def clear_auth_cookie_on_unauthorized(request, call_next):
     if should_clear_cookie:
         response.delete_cookie(
             settings.AUTH_COOKIE_NAME,
+            path="/",
             httponly=True,
             secure=settings.AUTH_COOKIE_SECURE,
             samesite=settings.AUTH_COOKIE_SAMESITE,

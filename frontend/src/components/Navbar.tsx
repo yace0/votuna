@@ -67,8 +67,12 @@ export default function Navbar() {
         authRequired: false,
       })
     } finally {
-      queryClient.clear()
-      router.push('/')
+      queryClient.setQueryData(currentUserQueryKey, null)
+      queryClient.removeQueries({ queryKey: currentUserQueryKey, exact: true })
+      window.dispatchEvent(new CustomEvent('votuna:user-updated', { detail: null }))
+      setLoginOpen(false)
+      router.replace('/')
+      router.refresh()
     }
   }
 
