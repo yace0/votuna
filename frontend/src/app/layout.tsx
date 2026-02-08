@@ -14,6 +14,11 @@ const spaceGrotesk = Space_Grotesk({
 export const metadata: Metadata = {
   title: 'Votuna',
   description: 'Votuna - Voting Platform',
+  icons: {
+    icon: '/img/logo.png',
+    shortcut: '/img/logo.png',
+    apple: '/img/logo.png',
+  },
 }
 
 /** Root layout shell for the application. */
