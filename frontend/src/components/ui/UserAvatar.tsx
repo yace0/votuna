@@ -1,4 +1,5 @@
 import Image from 'next/image'
+import { useEffect, useMemo, useState } from 'react'
 
 type UserAvatarProps = {
   src?: string | null
@@ -12,6 +13,7 @@ type UserAvatarProps = {
 const DEFAULT_IMAGE_CLASS = 'object-cover'
 const DEFAULT_FALLBACK_CLASS =
   'flex items-center justify-center bg-[rgba(var(--votuna-ink),0.1)] text-xs font-semibold text-[rgb(var(--votuna-ink))]'
+const DEFAULT_AVATAR_SRC = '/img/default-avatar.svg'
 
 export default function UserAvatar({
   src,
@@ -22,17 +24,34 @@ export default function UserAvatar({
   fallbackClassName = '',
 }: UserAvatarProps) {
   const sizeStyle = { width: size, height: size }
-  if (src) {
-    const imageClass = `${DEFAULT_IMAGE_CLASS} ${className}`.trim()
+  const requestedSrc = src || DEFAULT_AVATAR_SRC
+  const [imageSrc, setImageSrc] = useState(requestedSrc)
+
+  useEffect(() => {
+    setImageSrc(requestedSrc)
+  }, [requestedSrc])
+
+  const handleImageError = () => {
+    if (imageSrc !== DEFAULT_AVATAR_SRC) {
+      setImageSrc(DEFAULT_AVATAR_SRC)
+      return
+    }
+    setImageSrc('')
+  }
+
+  const imageClass = useMemo(() => `${DEFAULT_IMAGE_CLASS} ${className}`.trim(), [className])
+
+  if (imageSrc) {
     return (
       <Image
-        src={src}
+        src={imageSrc}
         alt={alt}
         width={size}
         height={size}
         unoptimized
         style={sizeStyle}
         className={imageClass}
+        onError={handleImageError}
       />
     )
   }

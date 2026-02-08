@@ -254,7 +254,9 @@ export default function ProfilePage() {
                 <UserAvatar
                   src={avatarSrc}
                   alt="Avatar"
-                  fallback="?"
+                  fallback={(user.display_name || user.first_name || user.email || 'U')
+                    .slice(0, 1)
+                    .toUpperCase()}
                   size={64}
                   className="h-full w-full rounded-none"
                   fallbackClassName="h-full w-full rounded-none bg-transparent text-sm font-semibold text-[color:rgb(var(--votuna-ink)/0.6)]"

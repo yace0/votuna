@@ -21,7 +21,11 @@ from app.crud.user import user_crud
 from app.crud.user_settings import user_settings_crud
 from app.db.session import get_db
 from app.services.votuna_invites import auto_accept_pending_targeted_invites, join_invite_by_token
-from app.utils.avatar_storage import save_avatar_from_url
+from app.utils.avatar_storage import (
+    delete_avatar_if_exists,
+    get_avatar_file_path,
+    save_avatar_from_url,
+)
 
 router = APIRouter()
 
@@ -34,6 +38,16 @@ def _is_safe_next_path(next_path: str | None) -> bool:
     if not next_path:
         return False
     return next_path.startswith("/") and not next_path.startswith("//")
+
+
+def _local_avatar_exists(avatar_url: str | None) -> bool:
+    """Return whether a locally stored avatar file exists."""
+    if not avatar_url or str(avatar_url).startswith("http"):
+        return False
+    try:
+        return get_avatar_file_path(str(avatar_url)).exists()
+    except HTTPException:
+        return False
 
 
 @router.get("/login/{provider}")
@@ -124,6 +138,8 @@ async def callback_provider(
             stored_avatar = await save_avatar_from_url(str(provider_avatar_url), user.id)
             if stored_avatar:
                 user = user_crud.update(db, user, {"avatar_url": stored_avatar})
+            else:
+                user = user_crud.update(db, user, {"avatar_url": str(provider_avatar_url)})
     else:
         user = user_crud.update(
             db,
@@ -136,11 +152,30 @@ async def callback_provider(
                 "last_login_at": datetime.now(timezone.utc),
             },
         )
-        avatar_needs_refresh = not user.avatar_url or str(user.avatar_url).startswith("http")
+        avatar_needs_refresh = (
+            not user.avatar_url
+            or str(user.avatar_url).startswith("http")
+            or not _local_avatar_exists(user.avatar_url)
+        )
         if provider_avatar_url and avatar_needs_refresh:
+            previous_avatar = user.avatar_url
             stored_avatar = await save_avatar_from_url(str(provider_avatar_url), user.id)
             if stored_avatar:
+                if (
+                    previous_avatar
+                    and not str(previous_avatar).startswith("http")
+                    and previous_avatar != stored_avatar
+                ):
+                    delete_avatar_if_exists(str(previous_avatar))
                 user = user_crud.update(db, user, {"avatar_url": stored_avatar})
+            elif not previous_avatar or not _local_avatar_exists(str(previous_avatar)):
+                user = user_crud.update(db, user, {"avatar_url": str(provider_avatar_url)})
+        elif (
+            user.avatar_url
+            and not str(user.avatar_url).startswith("http")
+            and not _local_avatar_exists(user.avatar_url)
+        ):
+            user = user_crud.update(db, user, {"avatar_url": None})
 
     access_token = getattr(sso, "access_token", None)
     refresh_token = getattr(sso, "refresh_token", None)

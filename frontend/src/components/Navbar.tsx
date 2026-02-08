@@ -7,6 +7,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
+import UserAvatar from '@/components/ui/UserAvatar'
 import { currentUserQueryKey, useCurrentUser } from '@/lib/hooks/useCurrentUser'
 import type { User } from '@/lib/types/user'
 import { apiFetch, API_URL } from '../lib/api'
@@ -116,14 +117,14 @@ export default function Navbar() {
               <Menu.Button className="flex items-center gap-2 rounded-full border border-[color:rgb(var(--votuna-ink)/0.1)] bg-[rgba(var(--votuna-paper),0.7)] px-4 py-2 text-sm font-medium text-[color:rgb(var(--votuna-ink)/0.7)] shadow-sm transition hover:shadow-md">
                 <span className="relative flex h-8 w-8 items-center justify-center">
                   <span className="flex h-full w-full items-center justify-center overflow-hidden rounded-full border border-[color:rgb(var(--votuna-ink)/0.1)] bg-[rgb(var(--votuna-paper))]">
-                    {avatarSrc ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={avatarSrc} alt={displayName} className="h-full w-full object-cover" />
-                    ) : (
-                      <span className="text-xs font-semibold text-[color:rgb(var(--votuna-ink)/0.7)]">
-                        {getInitials(user)}
-                      </span>
-                    )}
+                    <UserAvatar
+                      src={avatarSrc}
+                      alt={displayName || 'User avatar'}
+                      fallback={getInitials(user)}
+                      size={32}
+                      className="h-full w-full rounded-full"
+                      fallbackClassName="h-full w-full rounded-full bg-transparent text-xs font-semibold text-[color:rgb(var(--votuna-ink)/0.7)]"
+                    />
                   </span>
                   <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-[rgb(var(--votuna-paper))] bg-emerald-500" />
                 </span>
