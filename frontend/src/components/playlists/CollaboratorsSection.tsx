@@ -193,7 +193,14 @@ export default function CollaboratorsSection({
             </button>
           </div>
 
-          <div className="mt-6 flex flex-wrap items-center gap-3">
+          <form
+            className="mt-6 flex flex-wrap items-center gap-3"
+            onSubmit={(event) => {
+              event.preventDefault()
+              if (invites.search.isLoading) return
+              invites.search.run()
+            }}
+          >
             <TextInput
               value={invites.search.query}
               onValueChange={invites.search.setQuery}
@@ -201,13 +208,13 @@ export default function CollaboratorsSection({
               className="flex-1 bg-[rgba(var(--votuna-paper),0.85)] text-[rgb(var(--votuna-ink))]"
             />
             <Button
-              onClick={invites.search.run}
+              type="submit"
               disabled={invites.search.isLoading}
               className="rounded-full bg-[rgb(var(--votuna-ink))] px-5 text-[rgb(var(--votuna-paper))] hover:bg-[color:rgb(var(--votuna-ink)/0.9)]"
             >
               {invites.search.isLoading ? 'Searching...' : 'Search'}
             </Button>
-          </div>
+          </form>
 
           {invites.search.error ? (
             <p className="mt-3 text-xs text-rose-500">{invites.search.error}</p>

@@ -47,17 +47,27 @@ export default function SearchSuggestSection({
         </p>
       </div>
 
-      <div className="mt-6 flex flex-wrap items-center gap-3">
+      <form
+        className="mt-6 flex flex-wrap items-center gap-3"
+        onSubmit={(event) => {
+          event.preventDefault()
+          if (isSearching || !searchQuery.trim()) return
+          onSearchTracks()
+        }}
+      >
         <TextInput
           value={searchQuery}
           onValueChange={onSearchQueryChange}
           placeholder="Search SoundCloud tracks"
           className="flex-1"
         />
-        <PrimaryButton onClick={onSearchTracks} disabled={isSearching || !searchQuery.trim()}>
+        <PrimaryButton
+          type="submit"
+          disabled={isSearching || !searchQuery.trim()}
+        >
           {isSearching ? 'Searching...' : 'Search'}
         </PrimaryButton>
-      </div>
+      </form>
 
       {searchStatus ? <p className="mt-3 text-xs text-rose-500">{searchStatus}</p> : null}
 
@@ -127,7 +137,14 @@ export default function SearchSuggestSection({
         <p className="text-xs uppercase tracking-[0.22em] text-[color:rgb(var(--votuna-ink)/0.45)]">
           Suggest directly from link
         </p>
-        <div className="mt-3 flex flex-wrap items-center gap-3">
+        <form
+          className="mt-3 flex flex-wrap items-center gap-3"
+          onSubmit={(event) => {
+            event.preventDefault()
+            if (isSuggestPending || !linkSuggestionUrl.trim()) return
+            onSuggestFromLink()
+          }}
+        >
           <TextInput
             value={linkSuggestionUrl}
             onValueChange={onLinkSuggestionUrlChange}
@@ -135,12 +152,12 @@ export default function SearchSuggestSection({
             className="flex-1"
           />
           <PrimaryButton
-            onClick={onSuggestFromLink}
+            type="submit"
             disabled={isSuggestPending || !linkSuggestionUrl.trim()}
           >
             {isSuggestPending ? 'Adding...' : 'Suggest from link'}
           </PrimaryButton>
-        </div>
+        </form>
       </div>
       {suggestStatus ? <p className="mt-3 text-xs text-rose-500">{suggestStatus}</p> : null}
     </SurfaceCard>

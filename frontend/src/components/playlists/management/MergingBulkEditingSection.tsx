@@ -108,7 +108,19 @@ export default function MergingBulkEditingSection({ management }: MergingBulkEdi
 
                 {playlists.otherPlaylist.sourceMode === 'search_playlists' ? (
                   <div className="space-y-2">
-                    <div className="flex flex-wrap items-center gap-2">
+                    <form
+                      className="flex flex-wrap items-center gap-2"
+                      onSubmit={(event) => {
+                        event.preventDefault()
+                        if (
+                          playlists.otherPlaylist.search.isPending ||
+                          !playlists.otherPlaylist.search.input.trim()
+                        ) {
+                          return
+                        }
+                        playlists.otherPlaylist.search.run()
+                      }}
+                    >
                       <input
                         value={playlists.otherPlaylist.search.input}
                         onChange={(event) => playlists.otherPlaylist.search.setInput(event.target.value)}
@@ -116,8 +128,7 @@ export default function MergingBulkEditingSection({ management }: MergingBulkEdi
                         placeholder="Search playlists or paste a SoundCloud playlist link"
                       />
                       <button
-                        type="button"
-                        onClick={playlists.otherPlaylist.search.run}
+                        type="submit"
                         disabled={
                           playlists.otherPlaylist.search.isPending ||
                           !playlists.otherPlaylist.search.input.trim()
@@ -126,7 +137,7 @@ export default function MergingBulkEditingSection({ management }: MergingBulkEdi
                       >
                         {playlists.otherPlaylist.search.isPending ? 'Searching...' : 'Search'}
                       </button>
-                    </div>
+                    </form>
                     <p className="text-xs text-[color:rgb(var(--votuna-ink)/0.58)]">
                       Enter playlist text to search, or paste a SoundCloud playlist URL.
                     </p>
