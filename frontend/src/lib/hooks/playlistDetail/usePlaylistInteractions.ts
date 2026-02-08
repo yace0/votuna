@@ -23,10 +23,13 @@ type SuggestPayload = {
 type RecommendationFetchOptions = {
   reset: boolean
   nonce: string
+  pageSize?: number
 }
 
 const REJECTED_TRACK_ERROR_CODE = 'TRACK_PREVIOUSLY_REJECTED'
-const RECOMMENDATIONS_BATCH_SIZE = 5
+const RECOMMENDATIONS_BATCH_SIZE = 25
+const VISIBLE_RECOMMENDATIONS_COUNT = 5
+const RECOMMENDATIONS_QUEUE_PREFETCH_THRESHOLD = 5
 
 function createRefreshNonce(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -60,6 +63,7 @@ export function usePlaylistInteractions({
   const [linkSuggestionUrl, setLinkSuggestionUrl] = useState('')
   const [removingTrackId, setRemovingTrackId] = useState<string | null>(null)
   const [recommendedTracks, setRecommendedTracks] = useState<ProviderTrack[]>([])
+  const [recommendationQueue, setRecommendationQueue] = useState<ProviderTrack[]>([])
   const [recommendationsStatus, setRecommendationsStatus] = useState('')
   const [isRecommendationsLoading, setIsRecommendationsLoading] = useState(false)
   const [isRecommendationActionPending, setIsRecommendationActionPending] = useState(false)
@@ -84,9 +88,10 @@ export function usePlaylistInteractions({
   const fetchRecommendationPage = async (
     offset: number,
     nonce: string,
+    limit: number,
   ): Promise<ProviderTrack[]> => {
     const query = new URLSearchParams({
-      limit: String(RECOMMENDATIONS_BATCH_SIZE),
+      limit: String(Math.max(1, limit)),
       offset: String(Math.max(0, offset)),
     })
     if (nonce.trim()) {
@@ -98,35 +103,62 @@ export function usePlaylistInteractions({
     )
   }
 
+  const mergeRecommendations = (
+    visible: ProviderTrack[],
+    queue: ProviderTrack[],
+    incoming: ProviderTrack[],
+  ) => {
+    const visibleNext = [...visible]
+    const queueNext = [...queue]
+    const seen = new Set<string>([
+      ...visibleNext.map((track) => track.provider_track_id),
+      ...queueNext.map((track) => track.provider_track_id),
+    ])
+
+    for (const track of incoming) {
+      if (seen.has(track.provider_track_id)) continue
+      seen.add(track.provider_track_id)
+      queueNext.push(track)
+    }
+
+    while (visibleNext.length < VISIBLE_RECOMMENDATIONS_COUNT && queueNext.length > 0) {
+      const nextTrack = queueNext.shift()
+      if (!nextTrack) break
+      visibleNext.push(nextTrack)
+    }
+
+    return {
+      visible: visibleNext,
+      queue: queueNext,
+    }
+  }
+
   const fetchRecommendations = async ({
     reset,
     nonce,
+    pageSize,
   }: RecommendationFetchOptions) => {
     if (!playlistId) return
     if (!reset && (!hasMoreRecommendations || isRecommendationsLoading)) return
+    const requestLimit = pageSize ?? RECOMMENDATIONS_BATCH_SIZE
     const requestOffset = reset ? 0 : recommendationsOffset
     setRecommendationsStatus('')
     setIsRecommendationsLoading(true)
     try {
-      const results = await fetchRecommendationPage(requestOffset, nonce)
-      setRecommendedTracks((prev) => {
-        const base = reset ? [] : prev
-        const existingIds = new Set(base.map((track) => track.provider_track_id))
-        const merged = [...base]
-        for (const track of results) {
-          if (existingIds.has(track.provider_track_id)) continue
-          existingIds.add(track.provider_track_id)
-          merged.push(track)
-        }
-        return merged
-      })
+      const results = await fetchRecommendationPage(requestOffset, nonce, requestLimit)
+      const baseVisible = reset ? [] : recommendedTracks
+      const baseQueue = reset ? [] : recommendationQueue
+      const mergedRecommendations = mergeRecommendations(baseVisible, baseQueue, results)
+      setRecommendedTracks(mergedRecommendations.visible)
+      setRecommendationQueue(mergedRecommendations.queue)
       setRecommendationsOffset(requestOffset + results.length)
-      setHasMoreRecommendations(results.length === RECOMMENDATIONS_BATCH_SIZE)
+      setHasMoreRecommendations(results.length === requestLimit)
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to load recommendations'
       setRecommendationsStatus(message)
       if (reset) {
         setRecommendedTracks([])
+        setRecommendationQueue([])
         setRecommendationsOffset(0)
         setHasMoreRecommendations(false)
       }
@@ -163,6 +195,7 @@ export function usePlaylistInteractions({
   useEffect(() => {
     if (!playlistId) {
       setRecommendedTracks([])
+      setRecommendationQueue([])
       setRecommendationsStatus('')
       setRecommendationsOffset(0)
       setHasMoreRecommendations(false)
@@ -440,9 +473,14 @@ export function usePlaylistInteractions({
       const nextRecommendations = recommendedTracks.filter(
         (candidate) => candidate.provider_track_id !== track.provider_track_id,
       )
-      setRecommendedTracks(nextRecommendations)
+      const nextQueue = recommendationQueue.filter(
+        (candidate) => candidate.provider_track_id !== track.provider_track_id,
+      )
+      const mergedRecommendations = mergeRecommendations(nextRecommendations, nextQueue, [])
+      setRecommendedTracks(mergedRecommendations.visible)
+      setRecommendationQueue(mergedRecommendations.queue)
       if (
-        nextRecommendations.length < RECOMMENDATIONS_BATCH_SIZE &&
+        mergedRecommendations.queue.length < RECOMMENDATIONS_QUEUE_PREFETCH_THRESHOLD &&
         hasMoreRecommendations &&
         !isRecommendationsLoading
       ) {
@@ -456,12 +494,18 @@ export function usePlaylistInteractions({
   const declineRecommendation = async (track: ProviderTrack) => {
     if (!playlistId) return
     const previousRecommendations = recommendedTracks
+    const previousQueue = recommendationQueue
     const nextRecommendations = previousRecommendations.filter(
       (candidate) => candidate.provider_track_id !== track.provider_track_id,
     )
+    const nextQueue = previousQueue.filter(
+      (candidate) => candidate.provider_track_id !== track.provider_track_id,
+    )
+    const mergedRecommendations = mergeRecommendations(nextRecommendations, nextQueue, [])
     setRecommendationsStatus('')
     setIsRecommendationActionPending(true)
-    setRecommendedTracks(nextRecommendations)
+    setRecommendedTracks(mergedRecommendations.visible)
+    setRecommendationQueue(mergedRecommendations.queue)
     try {
       const response = await apiFetch(
         `/api/v1/votuna/playlists/${playlistId}/tracks/recommendations/decline`,
@@ -481,7 +525,7 @@ export function usePlaylistInteractions({
         throw new Error(detail)
       }
       if (
-        nextRecommendations.length < RECOMMENDATIONS_BATCH_SIZE &&
+        mergedRecommendations.queue.length < RECOMMENDATIONS_QUEUE_PREFETCH_THRESHOLD &&
         hasMoreRecommendations &&
         !isRecommendationsLoading
       ) {
@@ -489,6 +533,7 @@ export function usePlaylistInteractions({
       }
     } catch (error) {
       setRecommendedTracks(previousRecommendations)
+      setRecommendationQueue(previousQueue)
       const message = error instanceof Error ? error.message : 'Unable to decline recommendation'
       setRecommendationsStatus(message)
     } finally {
@@ -551,9 +596,7 @@ export function usePlaylistInteractions({
     recommendationsStatus,
     isRecommendationsLoading,
     isRecommendationActionPending,
-    hasMoreRecommendations,
     loadInitialRecommendations,
-    loadMoreRecommendations,
     refreshRecommendations,
     acceptRecommendation,
     declineRecommendation,

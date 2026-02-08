@@ -352,7 +352,7 @@ async def search_tracks_for_suggestions(
 @router.get("/playlists/{playlist_id}/tracks/recommendations", response_model=list[ProviderTrackOut])
 async def list_recommended_tracks(
     playlist_id: int,
-    limit: int = Query(5, ge=1, le=10),
+    limit: int = Query(5, ge=1, le=50),
     offset: int = Query(0, ge=0),
     refresh_nonce: str | None = Query(None),
     db: Session = Depends(get_db),
