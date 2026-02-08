@@ -4,20 +4,24 @@ import SurfaceCard from '@/components/ui/SurfaceCard'
 
 type PlaylistSettingsSectionProps = {
   requiredVotePercent: number
+  tieBreakMode: 'add' | 'reject'
   canEditSettings: boolean
   isSaving: boolean
   settingsStatus: string
   onSaveSettings: () => void
   onRequiredVotePercentChange: (value: number) => void
+  onTieBreakModeChange: (value: 'add' | 'reject') => void
 }
 
 export default function PlaylistSettingsSection({
   requiredVotePercent,
+  tieBreakMode,
   canEditSettings,
   isSaving,
   settingsStatus,
   onSaveSettings,
   onRequiredVotePercentChange,
+  onTieBreakModeChange,
 }: PlaylistSettingsSectionProps) {
   return (
     <SurfaceCard>
@@ -33,7 +37,21 @@ export default function PlaylistSettingsSection({
         </PrimaryButton>
       </div>
       <div className="mt-6">
-        <div>
+        <div className="space-y-4">
+          <div>
+            <p className="text-xs uppercase tracking-[0.2em] text-[color:rgb(var(--votuna-ink)/0.4)]">
+              Tie-break mode
+            </p>
+            <select
+              value={tieBreakMode}
+              disabled={!canEditSettings}
+              onChange={(event) => onTieBreakModeChange(event.target.value as 'add' | 'reject')}
+              className="mt-2 w-full rounded-2xl border border-[color:rgb(var(--votuna-ink)/0.1)] bg-[rgba(var(--votuna-paper),0.9)] px-4 py-2 text-sm text-[rgb(var(--votuna-ink))] disabled:opacity-60"
+            >
+              <option value="add">Add on tie</option>
+              <option value="reject">Reject on tie</option>
+            </select>
+          </div>
           <p className="text-xs uppercase tracking-[0.2em] text-[color:rgb(var(--votuna-ink)/0.4)]">
             Required vote percent
           </p>

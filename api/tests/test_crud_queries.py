@@ -165,6 +165,7 @@ def test_vote_crud_list_voter_display_names_order_and_fallbacks(db_session, votu
             {
                 "suggestion_id": suggestion.id,
                 "user_id": first_name_user.id,
+                "reaction": "up",
             },
         ),
         votuna_track_vote_crud.create(
@@ -172,6 +173,7 @@ def test_vote_crud_list_voter_display_names_order_and_fallbacks(db_session, votu
             {
                 "suggestion_id": suggestion.id,
                 "user_id": email_user.id,
+                "reaction": "up",
             },
         ),
         votuna_track_vote_crud.create(
@@ -179,6 +181,7 @@ def test_vote_crud_list_voter_display_names_order_and_fallbacks(db_session, votu
             {
                 "suggestion_id": suggestion.id,
                 "user_id": provider_id_user.id,
+                "reaction": "up",
             },
         ),
         votuna_track_vote_crud.create(
@@ -186,6 +189,7 @@ def test_vote_crud_list_voter_display_names_order_and_fallbacks(db_session, votu
             {
                 "suggestion_id": suggestion.id,
                 "user_id": user_id_fallback_user.id,
+                "reaction": "up",
             },
         ),
     ]
@@ -197,7 +201,7 @@ def test_vote_crud_list_voter_display_names_order_and_fallbacks(db_session, votu
         )
     db_session.commit()
 
-    names = votuna_track_vote_crud.list_voter_display_names(db_session, suggestion.id)
+    names = votuna_track_vote_crud.list_reactor_display_names(db_session, suggestion.id, "up")
     assert names == [
         "FirstNameOnly",
         "email-only@example.com",
@@ -222,6 +226,7 @@ def test_vote_crud_duplicate_vote_raises_integrity_error(db_session, votuna_play
         {
             "suggestion_id": suggestion.id,
             "user_id": user.id,
+            "reaction": "up",
         },
     )
 
@@ -231,7 +236,8 @@ def test_vote_crud_duplicate_vote_raises_integrity_error(db_session, votuna_play
             {
                 "suggestion_id": suggestion.id,
                 "user_id": user.id,
+                "reaction": "down",
             },
         )
 
-    assert votuna_track_vote_crud.count_votes(db_session, suggestion.id) == 1
+    assert votuna_track_vote_crud.count_reactions(db_session, suggestion.id)["total"] == 1

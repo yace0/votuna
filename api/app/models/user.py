@@ -46,3 +46,7 @@ class User(BaseModel):
         back_populates="user",
         cascade="all, delete-orphan",
     )
+    votuna_track_additions = relationship(
+        "VotunaTrackAddition",
+        back_populates="added_by_user",
+    )

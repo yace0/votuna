@@ -1,5 +1,6 @@
 """Playlist management routes for import/export workflows."""
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Iterable, Sequence
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -15,6 +16,7 @@ from app.auth.dependencies import get_current_user
 from app.db.session import get_db
 from app.models.user import User
 from app.models.votuna_playlist import VotunaPlaylist
+from app.crud.votuna_track_addition import votuna_track_addition_crud
 from app.schemas.votuna_playlist import MusicProvider, ProviderTrackOut
 from app.schemas.votuna_playlist_management import (
     ManagementFacetCount,
@@ -566,6 +568,7 @@ async def execute_management_transfer(
         )
 
     added_count = 0
+    successfully_added_track_ids: list[str] = []
     failed_items: list[ManagementFailedItem] = []
 
     for chunk in _chunks(to_add_track_ids, ADD_CHUNK_SIZE):
@@ -574,6 +577,7 @@ async def execute_management_transfer(
         try:
             await client.add_tracks(destination.provider_playlist_id, chunk)
             added_count += len(chunk)
+            successfully_added_track_ids.extend(chunk)
             continue
         except ProviderAuthError:
             raise_provider_auth(current_user, owner_id=current_playlist.owner_user_id)
@@ -586,6 +590,7 @@ async def execute_management_transfer(
             try:
                 await client.add_tracks(destination.provider_playlist_id, [track_id])
                 added_count += 1
+                successfully_added_track_ids.append(track_id)
             except ProviderAuthError:
                 raise_provider_auth(current_user, owner_id=current_playlist.owner_user_id)
                 raise AssertionError("unreachable")
@@ -596,6 +601,30 @@ async def execute_management_transfer(
             except Exception as exc:  # pragma: no cover - defensive fallback
                 failed_items.append(
                     ManagementFailedItem(provider_track_id=track_id, error=str(exc))
+                )
+
+    if successfully_added_track_ids:
+        destination_playlists = (
+            db.query(VotunaPlaylist)
+            .filter(
+                VotunaPlaylist.provider == current_playlist.provider,
+                VotunaPlaylist.provider_playlist_id == destination.provider_playlist_id,
+            )
+            .all()
+        )
+        added_at = datetime.now(timezone.utc)
+        for destination_playlist in destination_playlists:
+            for track_id in successfully_added_track_ids:
+                votuna_track_addition_crud.create(
+                    db,
+                    {
+                        "playlist_id": destination_playlist.id,
+                        "provider_track_id": track_id,
+                        "source": "playlist_utils",
+                        "added_at": added_at,
+                        "added_by_user_id": current_user.id,
+                        "suggestion_id": None,
+                    },
                 )
 
     return ManagementExecuteResponse(

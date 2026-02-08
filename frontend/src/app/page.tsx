@@ -377,7 +377,8 @@ export default function Home() {
   }
 
   const queryError = (providerQuery.error || votunaQuery.error) as ApiError | null
-  const errorMessage = actionError || queryError?.detail || queryError?.message || ''
+  const queryErrorMessage = queryError?.detail || queryError?.message || ''
+  const errorMessage = actionError || queryErrorMessage
 
   return (
     <main className="mx-auto w-full max-w-6xl px-6 py-16">

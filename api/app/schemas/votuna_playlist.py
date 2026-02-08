@@ -6,6 +6,7 @@ from pydantic import BaseModel, ConfigDict
 from app.schemas.votuna_playlist_settings import VotunaPlaylistSettingsOut
 
 MusicProvider = Literal["soundcloud", "spotify", "apple", "tidal"]
+TrackAddedSource = Literal["votuna_suggestion", "playlist_utils", "outside_votuna"]
 
 
 class ProviderPlaylistOut(BaseModel):
@@ -32,6 +33,8 @@ class ProviderTrackOut(BaseModel):
     artwork_url: str | None = None
     url: str | None = None
     added_at: datetime | None = None
+    added_source: TrackAddedSource = "outside_votuna"
+    added_by_label: str | None = None
     suggested_by_user_id: int | None = None
     suggested_by_display_name: str | None = None
 

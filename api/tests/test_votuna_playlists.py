@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 
 from app.crud.votuna_playlist_settings import votuna_playlist_settings_crud
+from app.crud.votuna_track_addition import votuna_track_addition_crud
 from app.crud.votuna_track_suggestion import votuna_track_suggestion_crud
 
 
@@ -17,6 +18,7 @@ def test_get_votuna_playlist_detail(auth_client, votuna_playlist):
     data = response.json()
     assert data["id"] == votuna_playlist.id
     assert data["settings"]["required_vote_percent"] == 60
+    assert data["settings"]["tie_break_mode"] == "add"
 
 
 def test_get_votuna_playlist_non_member_forbidden(other_auth_client, votuna_playlist):
@@ -32,6 +34,7 @@ def test_create_votuna_playlist_from_provider(auth_client, provider_stub):
     assert data["provider_playlist_id"] == "provider-2"
     assert data["title"] == "Synced Playlist"
     assert data["settings"]["required_vote_percent"] == 60
+    assert data["settings"]["tie_break_mode"] == "add"
 
 
 def test_create_votuna_playlist_conflict_for_existing_provider_playlist(
@@ -66,11 +69,12 @@ def test_create_votuna_playlist_requires_title(auth_client):
 def test_update_settings_owner(auth_client, votuna_playlist):
     response = auth_client.patch(
         f"/api/v1/votuna/playlists/{votuna_playlist.id}/settings",
-        json={"required_vote_percent": 75},
+        json={"required_vote_percent": 75, "tie_break_mode": "reject"},
     )
     assert response.status_code == 200
     data = response.json()
     assert data["required_vote_percent"] == 75
+    assert data["tie_break_mode"] == "reject"
 
 
 def test_update_settings_non_owner_forbidden(other_auth_client, votuna_playlist):
@@ -106,6 +110,8 @@ def test_list_votuna_tracks(auth_client, votuna_playlist, provider_stub):
     data = response.json()
     assert data[0]["provider_track_id"] == "track-1"
     assert data[0]["added_at"] is None
+    assert data[0]["added_source"] == "outside_votuna"
+    assert data[0]["added_by_label"] == "Added outside Votuna"
     assert data[0]["suggested_by_display_name"] is None
 
 
@@ -126,8 +132,31 @@ def test_list_votuna_tracks_includes_suggester(auth_client, db_session, votuna_p
     data = response.json()
     assert data[0]["provider_track_id"] == "track-1"
     assert data[0]["added_at"] is not None
+    assert data[0]["added_source"] == "votuna_suggestion"
+    assert data[0]["added_by_label"] == f"Suggested by {user.display_name}"
     assert data[0]["suggested_by_user_id"] == user.id
     assert data[0]["suggested_by_display_name"] == user.display_name
+
+
+def test_list_votuna_tracks_uses_playlist_utils_provenance(auth_client, db_session, votuna_playlist, user, provider_stub):
+    votuna_track_addition_crud.create(
+        db_session,
+        {
+            "playlist_id": votuna_playlist.id,
+            "provider_track_id": "track-1",
+            "source": "playlist_utils",
+            "added_at": datetime(2025, 2, 2, tzinfo=timezone.utc),
+            "added_by_user_id": user.id,
+            "suggestion_id": None,
+        },
+    )
+
+    response = auth_client.get(f"/api/v1/votuna/playlists/{votuna_playlist.id}/tracks")
+    assert response.status_code == 200
+    data = response.json()
+    assert data[0]["added_source"] == "playlist_utils"
+    assert data[0]["added_by_label"] == "Added by playlist utils"
+    assert data[0]["added_at"].startswith("2025-02-02")
 
 
 def test_list_votuna_tracks_prefers_latest_accepted_suggestion(

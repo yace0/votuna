@@ -1,8 +1,8 @@
 import { useMutation, type QueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 
+import { apiJson, type ApiError } from '@/lib/api'
 import { queryKeys } from '@/lib/constants/queryKeys'
-import { apiJson } from '@/lib/api'
 import type { ProviderTrack, Suggestion } from '@/lib/types/votuna'
 
 type UsePlaylistInteractionsArgs = {
@@ -10,8 +10,29 @@ type UsePlaylistInteractionsArgs = {
   queryClient: QueryClient
 }
 
+type SuggestPayload = {
+  provider_track_id?: string
+  track_title?: string | null
+  track_artist?: string | null
+  track_artwork_url?: string | null
+  track_url?: string | null
+  allow_resuggest?: boolean
+}
+
+const REJECTED_TRACK_ERROR_CODE = 'TRACK_PREVIOUSLY_REJECTED'
+
+function isRejectedTrackConflict(error: unknown): boolean {
+  if (!(error instanceof Error)) return false
+  const apiError = error as ApiError
+  if (apiError.status !== 409) return false
+  const detail = apiError.rawDetail as { code?: string } | undefined
+  if (detail?.code === REJECTED_TRACK_ERROR_CODE) return true
+  return error.message.toLowerCase().includes('previously rejected')
+}
+
 export function usePlaylistInteractions({ playlistId, queryClient }: UsePlaylistInteractionsArgs) {
   const [suggestStatus, setSuggestStatus] = useState('')
+  const [suggestionsActionStatus, setSuggestionsActionStatus] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<ProviderTrack[]>([])
   const [searchStatus, setSearchStatus] = useState('')
@@ -28,13 +49,7 @@ export function usePlaylistInteractions({ playlistId, queryClient }: UsePlaylist
   }
 
   const suggestMutation = useMutation({
-    mutationFn: async (payload: {
-      provider_track_id?: string
-      track_title?: string | null
-      track_artist?: string | null
-      track_artwork_url?: string | null
-      track_url?: string | null
-    }) => {
+    mutationFn: async (payload: SuggestPayload) => {
       return apiJson<Suggestion>(`/api/v1/votuna/playlists/${playlistId}/suggestions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -49,21 +64,64 @@ export function usePlaylistInteractions({ playlistId, queryClient }: UsePlaylist
       setSuggestStatus('')
       await invalidatePlaylistQueries(true)
     },
+  })
+
+  const reactionMutation = useMutation({
+    mutationFn: async ({
+      suggestionId,
+      reaction,
+    }: {
+      suggestionId: number
+      reaction: 'up' | 'down'
+    }) => {
+      return apiJson<Suggestion>(`/api/v1/votuna/suggestions/${suggestionId}/reaction`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        authRequired: true,
+        body: JSON.stringify({ reaction }),
+      })
+    },
+    onSuccess: async () => {
+      setSuggestionsActionStatus('')
+      await invalidatePlaylistQueries(false)
+    },
     onError: (error) => {
-      const message = error instanceof Error ? error.message : 'Unable to add suggestion'
-      setSuggestStatus(message)
+      const message = error instanceof Error ? error.message : 'Unable to update reaction'
+      setSuggestionsActionStatus(message)
     },
   })
 
-  const voteMutation = useMutation({
+  const cancelSuggestionMutation = useMutation({
     mutationFn: async (suggestionId: number) => {
-      return apiJson<Suggestion>(`/api/v1/votuna/suggestions/${suggestionId}/vote`, {
+      return apiJson<Suggestion>(`/api/v1/votuna/suggestions/${suggestionId}/cancel`, {
         method: 'POST',
         authRequired: true,
       })
     },
     onSuccess: async () => {
+      setSuggestionsActionStatus('')
       await invalidatePlaylistQueries(false)
+    },
+    onError: (error) => {
+      const message = error instanceof Error ? error.message : 'Unable to cancel suggestion'
+      setSuggestionsActionStatus(message)
+    },
+  })
+
+  const forceAddMutation = useMutation({
+    mutationFn: async (suggestionId: number) => {
+      return apiJson<Suggestion>(`/api/v1/votuna/suggestions/${suggestionId}/force-add`, {
+        method: 'POST',
+        authRequired: true,
+      })
+    },
+    onSuccess: async () => {
+      setSuggestionsActionStatus('')
+      await invalidatePlaylistQueries(false)
+    },
+    onError: (error) => {
+      const message = error instanceof Error ? error.message : 'Unable to force add suggestion'
+      setSuggestionsActionStatus(message)
     },
   })
 
@@ -89,9 +147,43 @@ export function usePlaylistInteractions({ playlistId, queryClient }: UsePlaylist
     }
   }
 
-  const suggestFromSearch = (track: ProviderTrack) => {
+  const runSuggestMutation = async (payload: SuggestPayload, allowResuggest: boolean) => {
+    await suggestMutation.mutateAsync({
+      ...payload,
+      allow_resuggest: allowResuggest,
+    })
+  }
+
+  const suggestTrack = async (payload: SuggestPayload) => {
     setSuggestStatus('')
-    suggestMutation.mutate({
+    try {
+      await runSuggestMutation(payload, false)
+    } catch (error) {
+      if (isRejectedTrackConflict(error) && typeof window !== 'undefined') {
+        const shouldResuggest = window.confirm(
+          'This track was rejected before. Suggest it again anyway?',
+        )
+        if (!shouldResuggest) {
+          setSuggestStatus('Suggestion canceled.')
+          return
+        }
+        try {
+          await runSuggestMutation(payload, true)
+          return
+        } catch (retryError) {
+          const retryMessage =
+            retryError instanceof Error ? retryError.message : 'Unable to add suggestion'
+          setSuggestStatus(retryMessage)
+          return
+        }
+      }
+      const message = error instanceof Error ? error.message : 'Unable to add suggestion'
+      setSuggestStatus(message)
+    }
+  }
+
+  const suggestFromSearch = (track: ProviderTrack) => {
+    void suggestTrack({
       provider_track_id: track.provider_track_id,
       track_title: track.title,
       track_artist: track.artist ?? null,
@@ -102,14 +194,24 @@ export function usePlaylistInteractions({ playlistId, queryClient }: UsePlaylist
 
   const suggestFromLink = () => {
     if (!playlistId || !linkSuggestionUrl.trim()) return
-    setSuggestStatus('')
-    suggestMutation.mutate({
+    void suggestTrack({
       track_url: linkSuggestionUrl.trim(),
     })
   }
 
-  const vote = (suggestionId: number) => {
-    voteMutation.mutate(suggestionId)
+  const setReaction = (suggestionId: number, reaction: 'up' | 'down') => {
+    setSuggestionsActionStatus('')
+    reactionMutation.mutate({ suggestionId, reaction })
+  }
+
+  const cancelSuggestion = (suggestionId: number) => {
+    setSuggestionsActionStatus('')
+    cancelSuggestionMutation.mutate(suggestionId)
+  }
+
+  const forceAddSuggestion = (suggestionId: number) => {
+    setSuggestionsActionStatus('')
+    forceAddMutation.mutate(suggestionId)
   }
 
   return {
@@ -120,12 +222,17 @@ export function usePlaylistInteractions({ playlistId, queryClient }: UsePlaylist
     searchStatus,
     searchResults,
     suggestStatus,
+    suggestionsActionStatus,
     suggestFromSearch,
     isSuggestPending: suggestMutation.isPending,
     linkSuggestionUrl,
     setLinkSuggestionUrl,
     suggestFromLink,
-    vote,
-    isVotePending: voteMutation.isPending,
+    setReaction,
+    isReactionPending: reactionMutation.isPending,
+    cancelSuggestion,
+    isCancelSuggestionPending: cancelSuggestionMutation.isPending,
+    forceAddSuggestion,
+    isForceAddPending: forceAddMutation.isPending,
   }
 }

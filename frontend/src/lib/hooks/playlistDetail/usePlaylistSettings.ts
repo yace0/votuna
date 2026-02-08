@@ -20,6 +20,7 @@ export function usePlaylistSettings({
 }: UsePlaylistSettingsArgs) {
   const [settingsForm, setSettingsForm] = useState<PlaylistSettingsForm>({
     required_vote_percent: 60,
+    tie_break_mode: 'add',
   })
   const [settingsStatus, setSettingsStatus] = useState('')
 
@@ -27,6 +28,7 @@ export function usePlaylistSettings({
     if (!settings) return
     setSettingsForm({
       required_vote_percent: settings.required_vote_percent,
+      tie_break_mode: settings.tie_break_mode,
     })
   }, [settings])
 
@@ -65,5 +67,7 @@ export function usePlaylistSettings({
     saveSettings,
     setRequiredVotePercent: (value: number) =>
       setSettingsForm((prev) => ({ ...prev, required_vote_percent: value })),
+    setTieBreakMode: (value: 'add' | 'reject') =>
+      setSettingsForm((prev) => ({ ...prev, tie_break_mode: value })),
   }
 }

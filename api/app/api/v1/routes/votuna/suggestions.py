@@ -1,4 +1,6 @@
 """Votuna suggestion routes."""
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
@@ -7,10 +9,15 @@ from app.db.session import get_db
 from app.models.user import User
 from app.models.votuna_playlist import VotunaPlaylist
 from app.models.votuna_suggestions import VotunaTrackSuggestion
-from app.schemas.votuna_suggestion import VotunaTrackSuggestionCreate, VotunaTrackSuggestionOut
 from app.schemas.votuna_playlist import ProviderTrackOut
+from app.schemas.votuna_suggestion import (
+    VotunaTrackReactionUpdate,
+    VotunaTrackSuggestionCreate,
+    VotunaTrackSuggestionOut,
+)
 from app.crud.votuna_playlist_member import votuna_playlist_member_crud
 from app.crud.votuna_playlist_settings import votuna_playlist_settings_crud
+from app.crud.votuna_track_addition import votuna_track_addition_crud
 from app.crud.votuna_track_suggestion import votuna_track_suggestion_crud
 from app.crud.votuna_track_vote import votuna_track_vote_crud
 from app.services.music_providers import ProviderAPIError, ProviderAuthError
@@ -19,14 +26,78 @@ from app.api.v1.routes.votuna.common import (
     get_playlist_or_404,
     raise_provider_auth,
     require_member,
+    require_owner,
 )
 
 router = APIRouter()
 
+REJECTED_TRACK_ERROR_CODE = "TRACK_PREVIOUSLY_REJECTED"
 
-def serialize_suggestion(db: Session, suggestion: VotunaTrackSuggestion) -> VotunaTrackSuggestionOut:
-    vote_count = votuna_track_vote_crud.count_votes(db, suggestion.id)
-    voter_display_names = votuna_track_vote_crud.list_voter_display_names(db, suggestion.id)
+
+def _display_name(user: User) -> str:
+    return (
+        user.display_name
+        or user.first_name
+        or user.email
+        or user.provider_user_id
+        or f"User {user.id}"
+    )
+
+
+def _member_name_by_user_id(db: Session, playlist_id: int) -> dict[int, str]:
+    members = votuna_playlist_member_crud.list_members(db, playlist_id)
+    return {member.user_id: _display_name(user) for member, user in members}
+
+
+def _raise_resuggest_conflict() -> None:
+    raise HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail={
+            "code": REJECTED_TRACK_ERROR_CODE,
+            "message": "Track was previously rejected. Confirm to suggest it again.",
+        },
+    )
+
+
+def _serialize_suggestion(
+    db: Session,
+    playlist: VotunaPlaylist,
+    suggestion: VotunaTrackSuggestion,
+    current_user_id: int,
+) -> VotunaTrackSuggestionOut:
+    reaction_by_user = votuna_track_vote_crud.get_reaction_by_user(db, suggestion.id)
+    member_names = _member_name_by_user_id(db, suggestion.playlist_id)
+    filtered_reactions = {
+        user_id: reaction
+        for user_id, reaction in reaction_by_user.items()
+        if user_id in member_names
+    }
+    upvoter_display_names = [
+        member_names[user_id]
+        for user_id in member_names
+        if filtered_reactions.get(user_id) == "up"
+    ]
+    downvoter_display_names = [
+        member_names[user_id]
+        for user_id in member_names
+        if filtered_reactions.get(user_id) == "down"
+    ]
+    collaborators_left_to_vote_names = [
+        name
+        for user_id, name in member_names.items()
+        if user_id not in filtered_reactions
+    ]
+    can_cancel = (
+        suggestion.status == "pending"
+        and (
+            current_user_id == suggestion.suggested_by_user_id
+            or current_user_id == playlist.owner_user_id
+        )
+    )
+    can_force_add = (
+        suggestion.status == "pending"
+        and current_user_id == playlist.owner_user_id
+    )
     return VotunaTrackSuggestionOut(
         id=suggestion.id,
         playlist_id=suggestion.playlist_id,
@@ -37,38 +108,145 @@ def serialize_suggestion(db: Session, suggestion: VotunaTrackSuggestion) -> Votu
         track_url=suggestion.track_url,
         suggested_by_user_id=suggestion.suggested_by_user_id,
         status=suggestion.status,
-        vote_count=vote_count,
-        voter_display_names=voter_display_names,
+        resolution_reason=suggestion.resolution_reason,
+        resolved_at=suggestion.resolved_at,
+        upvote_count=len(upvoter_display_names),
+        downvote_count=len(downvoter_display_names),
+        my_reaction=reaction_by_user.get(current_user_id),  # type: ignore[arg-type]
+        upvoter_display_names=upvoter_display_names,
+        downvoter_display_names=downvoter_display_names,
+        collaborators_left_to_vote_count=len(collaborators_left_to_vote_names),
+        collaborators_left_to_vote_names=collaborators_left_to_vote_names,
+        can_cancel=can_cancel,
+        can_force_add=can_force_add,
         created_at=suggestion.created_at,
         updated_at=suggestion.updated_at,
     )
 
 
-def is_threshold_met(votes: int, members: int, required_percent: int) -> bool:
-    if members <= 0:
-        return False
-    percent = (votes / members) * 100
-    return percent >= required_percent
+def _resolve_without_add(
+    db: Session,
+    suggestion: VotunaTrackSuggestion,
+    *,
+    status_value: str,
+    resolution_reason: str,
+    resolved_by_user_id: int,
+) -> VotunaTrackSuggestion:
+    now = datetime.now(timezone.utc)
+    return votuna_track_suggestion_crud.update(
+        db,
+        suggestion,
+        {
+            "status": status_value,
+            "resolved_at": now,
+            "resolved_by_user_id": resolved_by_user_id,
+            "resolution_reason": resolution_reason,
+        },
+    )
 
 
-async def maybe_auto_add_track(
+async def _accept_suggestion(
     db: Session,
     playlist: VotunaPlaylist,
     suggestion: VotunaTrackSuggestion,
-) -> None:
-    settings = votuna_playlist_settings_crud.get_by_playlist_id(db, playlist.id)
-    if not settings:
-        return
-    votes = votuna_track_vote_crud.count_votes(db, suggestion.id)
-    members = votuna_playlist_member_crud.count_members(db, playlist.id)
-    if not is_threshold_met(votes, members, settings.required_vote_percent):
-        return
+    *,
+    resolution_reason: str,
+    resolved_by_user_id: int,
+) -> VotunaTrackSuggestion:
+    now = datetime.now(timezone.utc)
     client = get_owner_client(db, playlist)
     await client.add_tracks(playlist.provider_playlist_id, [suggestion.provider_track_id])
-    votuna_track_suggestion_crud.update(
+    accepted = votuna_track_suggestion_crud.update(
         db,
         suggestion,
-        {"status": "accepted"},
+        {
+            "status": "accepted",
+            "resolved_at": now,
+            "resolved_by_user_id": resolved_by_user_id,
+            "resolution_reason": resolution_reason,
+        },
+    )
+    votuna_track_addition_crud.create(
+        db,
+        {
+            "playlist_id": playlist.id,
+            "provider_track_id": suggestion.provider_track_id,
+            "source": "suggestion",
+            "added_at": now,
+            "added_by_user_id": resolved_by_user_id,
+            "suggestion_id": suggestion.id,
+        },
+    )
+    return accepted
+
+
+async def _resolve_if_all_collaborators_voted(
+    db: Session,
+    playlist: VotunaPlaylist,
+    suggestion: VotunaTrackSuggestion,
+    *,
+    actor_user_id: int,
+) -> VotunaTrackSuggestion:
+    if suggestion.status != "pending":
+        return suggestion
+    settings = votuna_playlist_settings_crud.get_by_playlist_id(db, playlist.id)
+    if not settings:
+        return suggestion
+
+    member_rows = votuna_playlist_member_crud.list_members(db, playlist.id)
+    eligible_voter_ids = [member.user_id for member, _user in member_rows]
+    if not eligible_voter_ids:
+        return suggestion
+
+    reactions_by_user = votuna_track_vote_crud.get_reaction_by_user(db, suggestion.id)
+    has_all_votes = all(
+        user_id in reactions_by_user
+        for user_id in eligible_voter_ids
+    )
+    if not has_all_votes:
+        return suggestion
+
+    upvotes = sum(
+        1 for user_id in eligible_voter_ids
+        if reactions_by_user.get(user_id) == "up"
+    )
+    downvotes = sum(
+        1 for user_id in eligible_voter_ids
+        if reactions_by_user.get(user_id) == "down"
+    )
+
+    if upvotes == downvotes:
+        if settings.tie_break_mode == "add":
+            return await _accept_suggestion(
+                db,
+                playlist,
+                suggestion,
+                resolution_reason="tie_add",
+                resolved_by_user_id=actor_user_id,
+            )
+        return _resolve_without_add(
+            db,
+            suggestion,
+            status_value="rejected",
+            resolution_reason="tie_reject",
+            resolved_by_user_id=actor_user_id,
+        )
+
+    upvote_percent = (upvotes / len(eligible_voter_ids)) * 100
+    if upvote_percent >= settings.required_vote_percent:
+        return await _accept_suggestion(
+            db,
+            playlist,
+            suggestion,
+            resolution_reason="threshold_met",
+            resolved_by_user_id=actor_user_id,
+        )
+    return _resolve_without_add(
+        db,
+        suggestion,
+        status_value="rejected",
+        resolution_reason="threshold_not_met",
+        resolved_by_user_id=actor_user_id,
     )
 
 
@@ -80,9 +258,13 @@ def list_suggestions(
     current_user: User = Depends(get_current_user),
 ):
     """List suggestions for a playlist."""
+    playlist = get_playlist_or_404(db, playlist_id)
     require_member(db, playlist_id, current_user.id)
     suggestions = votuna_track_suggestion_crud.list_for_playlist(db, playlist_id, status)
-    return [serialize_suggestion(db, suggestion) for suggestion in suggestions]
+    return [
+        _serialize_suggestion(db, playlist, suggestion, current_user.id)
+        for suggestion in suggestions
+    ]
 
 
 @router.get("/playlists/{playlist_id}/tracks/search", response_model=list[ProviderTrackOut])
@@ -178,21 +360,28 @@ async def create_suggestion(
         provider_track_id,
     )
     if existing:
-        if not votuna_track_vote_crud.has_vote(db, existing.id, current_user.id):
-            votuna_track_vote_crud.create(
-                db,
-                {
-                    "suggestion_id": existing.id,
-                    "user_id": current_user.id,
-                },
-            )
+        votuna_track_vote_crud.set_reaction(db, existing.id, current_user.id, "up")
         try:
-            await maybe_auto_add_track(db, playlist, existing)
+            existing = await _resolve_if_all_collaborators_voted(
+                db,
+                playlist,
+                existing,
+                actor_user_id=current_user.id,
+            )
         except ProviderAuthError:
             raise_provider_auth(current_user, owner_id=playlist.owner_user_id)
         except ProviderAPIError as exc:
             raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
-        return serialize_suggestion(db, existing)
+        return _serialize_suggestion(db, playlist, existing, current_user.id)
+
+    if not payload.allow_resuggest:
+        latest_rejected = votuna_track_suggestion_crud.get_latest_rejected_by_track(
+            db,
+            playlist_id,
+            provider_track_id,
+        )
+        if latest_rejected:
+            _raise_resuggest_conflict()
 
     suggestion = votuna_track_suggestion_crud.create(
         db,
@@ -207,48 +396,129 @@ async def create_suggestion(
             "status": "pending",
         },
     )
-    votuna_track_vote_crud.create(
-        db,
-        {
-            "suggestion_id": suggestion.id,
-            "user_id": current_user.id,
-        },
-    )
+    votuna_track_vote_crud.set_reaction(db, suggestion.id, current_user.id, "up")
     try:
-        await maybe_auto_add_track(db, playlist, suggestion)
+        suggestion = await _resolve_if_all_collaborators_voted(
+            db,
+            playlist,
+            suggestion,
+            actor_user_id=current_user.id,
+        )
     except ProviderAuthError:
         raise_provider_auth(current_user, owner_id=playlist.owner_user_id)
     except ProviderAPIError as exc:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
-    return serialize_suggestion(db, suggestion)
+    return _serialize_suggestion(db, playlist, suggestion, current_user.id)
 
 
-@router.post("/suggestions/{suggestion_id}/vote", response_model=VotunaTrackSuggestionOut)
-async def vote_on_suggestion(
+@router.put("/suggestions/{suggestion_id}/reaction", response_model=VotunaTrackSuggestionOut)
+async def set_suggestion_reaction(
     suggestion_id: int,
+    payload: VotunaTrackReactionUpdate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Upvote a track suggestion."""
+    """Create/update/remove a reaction on a suggestion."""
     suggestion = votuna_track_suggestion_crud.get(db, suggestion_id)
     if not suggestion:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Suggestion not found")
     playlist = get_playlist_or_404(db, suggestion.playlist_id)
     require_member(db, suggestion.playlist_id, current_user.id)
     if suggestion.status != "pending":
-        return serialize_suggestion(db, suggestion)
-    if not votuna_track_vote_crud.has_vote(db, suggestion.id, current_user.id):
-        votuna_track_vote_crud.create(
+        return _serialize_suggestion(db, playlist, suggestion, current_user.id)
+
+    existing = votuna_track_vote_crud.get_vote(db, suggestion.id, current_user.id)
+    if payload.reaction is None:
+        if existing:
+            votuna_track_vote_crud.clear_reaction(db, suggestion.id, current_user.id)
+    elif existing and existing.reaction == payload.reaction:
+        votuna_track_vote_crud.clear_reaction(db, suggestion.id, current_user.id)
+    else:
+        votuna_track_vote_crud.set_reaction(
             db,
-            {
-                "suggestion_id": suggestion.id,
-                "user_id": current_user.id,
-            },
+            suggestion.id,
+            current_user.id,
+            payload.reaction,
         )
+
     try:
-        await maybe_auto_add_track(db, playlist, suggestion)
+        suggestion = await _resolve_if_all_collaborators_voted(
+            db,
+            playlist,
+            suggestion,
+            actor_user_id=current_user.id,
+        )
     except ProviderAuthError:
         raise_provider_auth(current_user, owner_id=playlist.owner_user_id)
     except ProviderAPIError as exc:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
-    return serialize_suggestion(db, suggestion)
+    return _serialize_suggestion(db, playlist, suggestion, current_user.id)
+
+
+@router.post("/suggestions/{suggestion_id}/cancel", response_model=VotunaTrackSuggestionOut)
+def cancel_suggestion(
+    suggestion_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Cancel a pending suggestion (suggester or owner only)."""
+    suggestion = votuna_track_suggestion_crud.get(db, suggestion_id)
+    if not suggestion:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Suggestion not found")
+    playlist = get_playlist_or_404(db, suggestion.playlist_id)
+    require_member(db, suggestion.playlist_id, current_user.id)
+    if suggestion.status != "pending":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Only pending suggestions can be canceled",
+        )
+
+    is_owner = current_user.id == playlist.owner_user_id
+    is_suggester = current_user.id == suggestion.suggested_by_user_id
+    if not (is_owner or is_suggester):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the suggester or playlist owner can cancel this suggestion",
+        )
+
+    reason = "canceled_by_suggester" if is_suggester else "canceled_by_owner"
+    suggestion = _resolve_without_add(
+        db,
+        suggestion,
+        status_value="canceled",
+        resolution_reason=reason,
+        resolved_by_user_id=current_user.id,
+    )
+    return _serialize_suggestion(db, playlist, suggestion, current_user.id)
+
+
+@router.post("/suggestions/{suggestion_id}/force-add", response_model=VotunaTrackSuggestionOut)
+async def force_add_suggestion(
+    suggestion_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Force-add a pending suggestion (playlist owner only)."""
+    suggestion = votuna_track_suggestion_crud.get(db, suggestion_id)
+    if not suggestion:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Suggestion not found")
+    playlist = require_owner(db, suggestion.playlist_id, current_user.id)
+    if suggestion.status != "pending":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Only pending suggestions can be force-added",
+        )
+
+    try:
+        suggestion = await _accept_suggestion(
+            db,
+            playlist,
+            suggestion,
+            resolution_reason="force_add",
+            resolved_by_user_id=current_user.id,
+        )
+    except ProviderAuthError:
+        raise_provider_auth(current_user, owner_id=playlist.owner_user_id)
+    except ProviderAPIError as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+    return _serialize_suggestion(db, playlist, suggestion, current_user.id)

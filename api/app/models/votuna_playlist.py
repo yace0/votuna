@@ -44,5 +44,10 @@ class VotunaPlaylist(BaseModel):
         back_populates="playlist",
         cascade="all, delete-orphan",
     )
+    track_additions = relationship(
+        "VotunaTrackAddition",
+        back_populates="playlist",
+        cascade="all, delete-orphan",
+    )
 
 

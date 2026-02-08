@@ -387,6 +387,7 @@ def votuna_playlist(db_session, user):
         {
             "playlist_id": playlist.id,
             "required_vote_percent": 60,
+            "tie_break_mode": "add",
         },
     )
     votuna_playlist_member_crud.create(

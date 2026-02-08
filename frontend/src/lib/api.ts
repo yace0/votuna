@@ -8,6 +8,7 @@ type ApiFetchOptions = RequestInit & {
 export type ApiError = Error & {
   status?: number
   detail?: string
+  rawDetail?: unknown
 }
 
 export async function apiFetch(path: string, options: ApiFetchOptions = {}) {
@@ -29,9 +30,17 @@ export async function apiJson<T>(path: string, options: ApiFetchOptions = {}) {
   const response = await apiFetch(path, options)
   if (!response.ok) {
     const body = await response.json().catch(() => ({}))
-    const error: ApiError = new Error(body.detail ?? 'Request failed')
+    const rawDetail = body.detail
+    const message =
+      typeof rawDetail === 'string'
+        ? rawDetail
+        : typeof rawDetail?.message === 'string'
+          ? rawDetail.message
+          : 'Request failed'
+    const error: ApiError = new Error(message)
     error.status = response.status
-    error.detail = body.detail
+    error.detail = message
+    error.rawDetail = rawDetail
     throw error
   }
   return (await response.json()) as T

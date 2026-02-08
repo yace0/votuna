@@ -68,11 +68,13 @@ export default function TracksSection({ tracks, isLoading, onPlayTrack }: Tracks
                 <div className="flex w-full items-center justify-between gap-3 text-right sm:w-auto sm:justify-end">
                   <div className="min-w-0">
                     <p className="mt-1 text-xs text-[color:rgb(var(--votuna-ink)/0.55)]">
-                      {track.suggested_by_display_name
-                        ? `Suggested by ${track.suggested_by_display_name}`
-                        : track.suggested_by_user_id
-                          ? 'Suggested by a former member'
-                          : 'Added outside Votuna'}
+                      {track.added_by_label
+                        ? track.added_by_label
+                        : track.suggested_by_display_name
+                          ? `Suggested by ${track.suggested_by_display_name}`
+                          : track.suggested_by_user_id
+                            ? 'Suggested by a former member'
+                            : 'Added outside Votuna'}
                     </p>
                     <p className="text-xs text-[color:rgb(var(--votuna-ink)/0.5)] tabular-nums">
                       {formatAddedDate(track.added_at)}

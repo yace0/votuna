@@ -3,6 +3,7 @@ import uuid
 from app.crud.votuna_playlist import votuna_playlist_crud
 from app.crud.votuna_playlist_member import votuna_playlist_member_crud
 from app.crud.votuna_playlist_settings import votuna_playlist_settings_crud
+from app.crud.votuna_track_addition import votuna_track_addition_crud
 from app.services.music_providers.base import ProviderTrack
 
 
@@ -24,6 +25,7 @@ def _create_owned_votuna_playlist(db_session, owner_user, provider_playlist_id: 
         {
             "playlist_id": playlist.id,
             "required_vote_percent": 60,
+            "tie_break_mode": "add",
         },
     )
     votuna_playlist_member_crud.create(
@@ -96,6 +98,40 @@ def test_execute_export_to_existing_success(auth_client, votuna_playlist, provid
     assert data["added_count"] == 1
     assert data["skipped_duplicate_count"] == 1
     assert data["failed_count"] == 0
+
+
+def test_execute_import_records_playlist_utils_provenance(auth_client, db_session, votuna_playlist, provider_stub):
+    provider_stub.tracks_by_playlist_id[votuna_playlist.provider_playlist_id] = []
+    provider_stub.tracks_by_playlist_id["source-for-provenance"] = [
+        ProviderTrack(provider_track_id="track-a", title="A", artist="One", genre="House"),
+        ProviderTrack(provider_track_id="track-b", title="B", artist="Two", genre="Techno"),
+    ]
+
+    response = auth_client.post(
+        f"/api/v1/votuna/playlists/{votuna_playlist.id}/management/execute",
+        json={
+            "direction": "import_to_current",
+            "counterparty": {
+                "kind": "provider",
+                "provider": "soundcloud",
+                "provider_playlist_id": "source-for-provenance",
+            },
+            "selection_mode": "all",
+            "selection_values": [],
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["added_count"] == 2
+
+    additions = votuna_track_addition_crud.list_latest_for_tracks(
+        db_session,
+        votuna_playlist.id,
+        ["track-a", "track-b"],
+    )
+    assert additions["track-a"].source == "playlist_utils"
+    assert additions["track-b"].source == "playlist_utils"
+    assert additions["track-a"].added_at is not None
 
 
 def test_management_non_owner_forbidden(other_auth_client, votuna_playlist):

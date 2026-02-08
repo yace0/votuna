@@ -21,6 +21,7 @@ from app.schemas.votuna_playlist_settings import (
 from app.crud.votuna_playlist import votuna_playlist_crud
 from app.crud.votuna_playlist_member import votuna_playlist_member_crud
 from app.crud.votuna_playlist_settings import votuna_playlist_settings_crud
+from app.crud.votuna_track_addition import votuna_track_addition_crud
 from app.services.music_providers import ProviderAPIError, ProviderAuthError
 from app.api.v1.routes.votuna.common import (
     get_owner_client,
@@ -32,6 +33,16 @@ from app.api.v1.routes.votuna.common import (
 )
 
 router = APIRouter()
+
+
+def _display_name(user: User) -> str:
+    return (
+        user.display_name
+        or user.first_name
+        or user.email
+        or user.provider_user_id
+        or f"User {user.id}"
+    )
 
 
 @router.get("/playlists", response_model=list[VotunaPlaylistOut])
@@ -101,6 +112,7 @@ async def create_votuna_playlist(
         {
             "playlist_id": playlist.id,
             "required_vote_percent": 60,
+            "tie_break_mode": "add",
         },
     )
 
@@ -199,6 +211,12 @@ async def list_votuna_tracks(
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
 
     track_ids = [track.provider_track_id for track in tracks if track.provider_track_id]
+    latest_additions_by_track = votuna_track_addition_crud.list_latest_for_tracks(
+        db,
+        playlist_id,
+        track_ids,
+    )
+
     suggestion_lookup: dict[str, tuple[int | None, str | None, datetime | None]] = {}
     if track_ids:
         suggestion_rows = (
@@ -215,31 +233,107 @@ async def list_votuna_tracks(
         for suggestion, suggested_by_user in suggestion_rows:
             if suggestion.provider_track_id in suggestion_lookup:
                 continue
-            suggested_by_name = None
-            if suggested_by_user:
-                suggested_by_name = (
-                    suggested_by_user.display_name
-                    or suggested_by_user.first_name
-                    or suggested_by_user.email
-                    or suggested_by_user.provider_user_id
-                )
+            suggested_by_name = _display_name(suggested_by_user) if suggested_by_user else None
             suggestion_lookup[suggestion.provider_track_id] = (
                 suggestion.suggested_by_user_id,
                 suggested_by_name,
                 suggestion.updated_at,
             )
 
-    return [
-        ProviderTrackOut(
-            provider_track_id=track.provider_track_id,
-            title=track.title,
-            artist=track.artist,
-            genre=track.genre,
-            artwork_url=track.artwork_url,
-            url=track.url,
-            added_at=suggestion_lookup.get(track.provider_track_id, (None, None, None))[2],
-            suggested_by_user_id=suggestion_lookup.get(track.provider_track_id, (None, None, None))[0],
-            suggested_by_display_name=suggestion_lookup.get(track.provider_track_id, (None, None, None))[1],
-        )
-        for track in tracks
+    addition_suggestion_ids = [
+        addition.suggestion_id
+        for addition in latest_additions_by_track.values()
+        if addition.suggestion_id is not None
     ]
+    suggestions_by_id: dict[int, VotunaTrackSuggestion] = {}
+    if addition_suggestion_ids:
+        suggestion_rows = (
+            db.query(VotunaTrackSuggestion)
+            .filter(VotunaTrackSuggestion.id.in_(addition_suggestion_ids))
+            .all()
+        )
+        suggestions_by_id = {suggestion.id: suggestion for suggestion in suggestion_rows}
+
+    user_ids: set[int] = set()
+    for addition in latest_additions_by_track.values():
+        if addition.added_by_user_id is not None:
+            user_ids.add(addition.added_by_user_id)
+    for suggestion in suggestions_by_id.values():
+        if suggestion.suggested_by_user_id is not None:
+            user_ids.add(suggestion.suggested_by_user_id)
+
+    users_by_id: dict[int, User] = {}
+    if user_ids:
+        user_rows = db.query(User).filter(User.id.in_(list(user_ids))).all()
+        users_by_id = {user.id: user for user in user_rows}
+
+    payload: list[ProviderTrackOut] = []
+    for track in tracks:
+        track_id = track.provider_track_id
+        legacy_suggestion = suggestion_lookup.get(track_id, (None, None, None))
+        suggested_by_user_id = legacy_suggestion[0]
+        suggested_by_display_name = legacy_suggestion[1]
+        added_at = legacy_suggestion[2]
+        added_source = "votuna_suggestion" if legacy_suggestion[2] else "outside_votuna"
+        added_by_label = None
+        if legacy_suggestion[2]:
+            added_by_label = (
+                f"Suggested by {legacy_suggestion[1]}"
+                if legacy_suggestion[1]
+                else (
+                    "Suggested by a former member"
+                    if legacy_suggestion[0]
+                    else "Suggested via Votuna"
+                )
+            )
+        else:
+            added_by_label = "Added outside Votuna"
+
+        addition = latest_additions_by_track.get(track_id)
+        if addition:
+            added_at = addition.added_at
+            if addition.source == "playlist_utils":
+                added_source = "playlist_utils"
+                suggested_by_user_id = None
+                suggested_by_display_name = None
+                added_by_label = "Added by playlist utils"
+            elif addition.source == "suggestion":
+                added_source = "votuna_suggestion"
+                suggestion = (
+                    suggestions_by_id.get(addition.suggestion_id)
+                    if addition.suggestion_id is not None
+                    else None
+                )
+                if suggestion:
+                    suggested_by_user_id = suggestion.suggested_by_user_id
+                    suggested_by_display_name = (
+                        _display_name(users_by_id[suggestion.suggested_by_user_id])
+                        if suggestion.suggested_by_user_id in users_by_id
+                        else None
+                    )
+                added_by_label = (
+                    f"Suggested by {suggested_by_display_name}"
+                    if suggested_by_display_name
+                    else (
+                        "Suggested by a former member"
+                        if suggested_by_user_id
+                        else "Suggested via Votuna"
+                    )
+                )
+
+        payload.append(
+            ProviderTrackOut(
+                provider_track_id=track.provider_track_id,
+                title=track.title,
+                artist=track.artist,
+                genre=track.genre,
+                artwork_url=track.artwork_url,
+                url=track.url,
+                added_at=added_at,
+                added_source=added_source,  # type: ignore[arg-type]
+                added_by_label=added_by_label,
+                suggested_by_user_id=suggested_by_user_id,
+                suggested_by_display_name=suggested_by_display_name,
+            )
+        )
+    return payload

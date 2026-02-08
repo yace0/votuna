@@ -99,8 +99,13 @@ export default function PlaylistDetailPage() {
                   isLoading={state.isSuggestionsLoading}
                   memberNameById={state.memberNameById}
                   onPlayTrack={state.playTrack}
-                  onVote={state.vote}
-                  isVotePending={state.isVotePending}
+                  onSetReaction={state.setReaction}
+                  isReactionPending={state.isReactionPending}
+                  onCancelSuggestion={state.cancelSuggestion}
+                  isCancelPending={state.isCancelSuggestionPending}
+                  onForceAddSuggestion={state.forceAddSuggestion}
+                  isForceAddPending={state.isForceAddPending}
+                  statusMessage={state.suggestionsActionStatus}
                 />
 
                 <TracksSection
@@ -117,11 +122,13 @@ export default function PlaylistDetailPage() {
               <div className="space-y-6">
                 <PlaylistSettingsSection
                   requiredVotePercent={state.settingsForm.required_vote_percent}
+                  tieBreakMode={state.settingsForm.tie_break_mode}
                   canEditSettings={state.canEditSettings}
                   isSaving={state.isSettingsSaving}
                   settingsStatus={state.settingsStatus}
                   onSaveSettings={state.saveSettings}
                   onRequiredVotePercentChange={state.setRequiredVotePercent}
+                  onTieBreakModeChange={state.setTieBreakMode}
                 />
                 <CollaboratorsSection
                   members={state.members}

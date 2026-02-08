@@ -1,3 +1,4 @@
+import { RiAddLine, RiCloseLine, RiThumbDownLine, RiThumbUpLine } from '@remixicon/react'
 import { Button } from '@tremor/react'
 
 import type { Suggestion, TrackPlayRequest } from '@/lib/types/votuna'
@@ -13,8 +14,13 @@ type SuggestionsSectionProps = {
   isLoading: boolean
   memberNameById: ReadonlyMap<number, string>
   onPlayTrack: (track: TrackPlayRequest) => void
-  onVote: (suggestionId: number) => void
-  isVotePending: boolean
+  onSetReaction: (suggestionId: number, reaction: 'up' | 'down') => void
+  isReactionPending: boolean
+  onCancelSuggestion: (suggestionId: number) => void
+  isCancelPending: boolean
+  onForceAddSuggestion: (suggestionId: number) => void
+  isForceAddPending: boolean
+  statusMessage?: string
 }
 
 const formatAddedDate = (addedAt: string | null | undefined) => {
@@ -24,13 +30,21 @@ const formatAddedDate = (addedAt: string | null | undefined) => {
   return `Added ${date.toLocaleDateString()}`
 }
 
+const reactionButtonBaseClass =
+  'inline-flex h-10 w-10 items-center justify-center rounded-full border transition disabled:cursor-not-allowed disabled:opacity-60'
+
 export default function SuggestionsSection({
   suggestions,
   isLoading,
   memberNameById,
   onPlayTrack,
-  onVote,
-  isVotePending,
+  onSetReaction,
+  isReactionPending,
+  onCancelSuggestion,
+  isCancelPending,
+  onForceAddSuggestion,
+  isForceAddPending,
+  statusMessage,
 }: SuggestionsSectionProps) {
   return (
     <SurfaceCard>
@@ -38,7 +52,7 @@ export default function SuggestionsSection({
         <div>
           <SectionEyebrow>Active suggestions</SectionEyebrow>
           <p className="mt-2 text-sm text-[color:rgb(var(--votuna-ink)/0.7)]">
-            Vote to add tracks to the playlist.
+            React with thumbs up or down to resolve each track.
           </p>
         </div>
       </div>
@@ -78,8 +92,12 @@ export default function SuggestionsSection({
                     <div className="mt-1 text-xs text-[color:rgb(var(--votuna-ink)/0.6)]">
                       {suggestion.track_artist || 'Unknown artist'} -{' '}
                       <VoteCountWithTooltip
-                        voteCount={suggestion.vote_count}
-                        voters={suggestion.voter_display_names}
+                        upvoteCount={suggestion.upvote_count}
+                        downvoteCount={suggestion.downvote_count}
+                        upvoters={suggestion.upvoter_display_names}
+                        downvoters={suggestion.downvoter_display_names}
+                        collaboratorsLeftToVoteCount={suggestion.collaborators_left_to_vote_count || 0}
+                        collaboratorsLeftToVoteNames={suggestion.collaborators_left_to_vote_names || []}
                       />
                     </div>
                   </div>
@@ -115,13 +133,53 @@ export default function SuggestionsSection({
                         Play
                       </Button>
                     ) : null}
-                    <PrimaryButton
-                      onClick={() => onVote(suggestion.id)}
-                      disabled={isVotePending}
-                      className="w-24 justify-center"
+                    <button
+                      type="button"
+                      disabled={isReactionPending}
+                      aria-label="Thumbs up"
+                      onClick={() => onSetReaction(suggestion.id, 'up')}
+                      className={`${reactionButtonBaseClass} ${
+                        suggestion.my_reaction === 'up'
+                          ? 'border-emerald-400 bg-emerald-100/70 text-emerald-700'
+                          : 'border-[color:rgb(var(--votuna-ink)/0.16)] text-[color:rgb(var(--votuna-ink)/0.75)] hover:border-emerald-400 hover:text-emerald-700'
+                      }`}
                     >
-                      Vote
-                    </PrimaryButton>
+                      <RiThumbUpLine className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isReactionPending}
+                      aria-label="Thumbs down"
+                      onClick={() => onSetReaction(suggestion.id, 'down')}
+                      className={`${reactionButtonBaseClass} ${
+                        suggestion.my_reaction === 'down'
+                          ? 'border-rose-400 bg-rose-100/70 text-rose-700'
+                          : 'border-[color:rgb(var(--votuna-ink)/0.16)] text-[color:rgb(var(--votuna-ink)/0.75)] hover:border-rose-400 hover:text-rose-700'
+                      }`}
+                    >
+                      <RiThumbDownLine className="h-4 w-4" />
+                    </button>
+                    {suggestion.can_cancel ? (
+                      <button
+                        type="button"
+                        disabled={isCancelPending}
+                        aria-label="Cancel suggestion"
+                        onClick={() => onCancelSuggestion(suggestion.id)}
+                        className={`${reactionButtonBaseClass} border-[color:rgb(var(--votuna-ink)/0.16)] text-[color:rgb(var(--votuna-ink)/0.75)] hover:border-[color:rgb(var(--votuna-ink)/0.35)] hover:text-[rgb(var(--votuna-ink))]`}
+                      >
+                        <RiCloseLine className="h-4 w-4" />
+                      </button>
+                    ) : null}
+                    {suggestion.can_force_add ? (
+                      <PrimaryButton
+                        onClick={() => onForceAddSuggestion(suggestion.id)}
+                        disabled={isForceAddPending}
+                        className="w-28 justify-center"
+                      >
+                        <RiAddLine className="mr-1 h-4 w-4" />
+                        Force add
+                      </PrimaryButton>
+                    ) : null}
                   </div>
                 </div>
               </div>
@@ -129,6 +187,7 @@ export default function SuggestionsSection({
           ))}
         </div>
       )}
+      {statusMessage ? <p className="mt-3 text-xs text-rose-500">{statusMessage}</p> : null}
     </SurfaceCard>
   )
 }

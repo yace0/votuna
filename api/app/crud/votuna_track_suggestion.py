@@ -36,5 +36,23 @@ class VotunaTrackSuggestionCRUD(BaseCRUD[VotunaTrackSuggestion, dict, dict]):
             query = query.filter(VotunaTrackSuggestion.status == status)
         return query.order_by(VotunaTrackSuggestion.created_at.desc()).all()
 
+    def get_latest_rejected_by_track(
+        self,
+        db: Session,
+        playlist_id: int,
+        provider_track_id: str,
+    ) -> Optional[VotunaTrackSuggestion]:
+        """Return the latest rejected suggestion for a track if it exists."""
+        return (
+            db.query(VotunaTrackSuggestion)
+            .filter(
+                VotunaTrackSuggestion.playlist_id == playlist_id,
+                VotunaTrackSuggestion.provider_track_id == provider_track_id,
+                VotunaTrackSuggestion.status == "rejected",
+            )
+            .order_by(VotunaTrackSuggestion.updated_at.desc())
+            .first()
+        )
+
 
 votuna_track_suggestion_crud = VotunaTrackSuggestionCRUD(VotunaTrackSuggestion)

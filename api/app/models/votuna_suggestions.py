@@ -1,5 +1,5 @@
 """Votuna track suggestion models"""
-from sqlalchemy import Column, Integer, String, ForeignKey
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
 
 from app.models.base import BaseModel
@@ -18,10 +18,17 @@ class VotunaTrackSuggestion(BaseModel):
     track_url = Column(String, nullable=True)
     suggested_by_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     status = Column(String, default="pending", nullable=False)
+    resolved_at = Column(DateTime(timezone=True), nullable=True)
+    resolved_by_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    resolution_reason = Column(String, nullable=True)
 
     playlist = relationship("VotunaPlaylist", back_populates="suggestions")
     votes = relationship(
         "VotunaTrackVote",
         back_populates="suggestion",
         cascade="all, delete-orphan",
+    )
+    track_additions = relationship(
+        "VotunaTrackAddition",
+        back_populates="suggestion",
     )

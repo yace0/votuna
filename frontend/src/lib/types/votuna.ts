@@ -2,10 +2,12 @@ export type PlaylistSettings = {
   id: number
   playlist_id: number
   required_vote_percent: number
+  tie_break_mode: 'add' | 'reject'
 }
 
 export type PlaylistSettingsForm = {
   required_vote_percent: number
+  tie_break_mode: 'add' | 'reject'
 }
 
 export type VotunaPlaylist = {
@@ -22,16 +24,35 @@ export type VotunaPlaylist = {
 
 export type Suggestion = {
   id: number
+  playlist_id: number
   provider_track_id: string
   track_title?: string | null
   track_artist?: string | null
   track_artwork_url?: string | null
   track_url?: string | null
   suggested_by_user_id?: number | null
-  voter_display_names?: string[]
   created_at?: string | null
+  updated_at?: string | null
+  resolved_at?: string | null
+  resolution_reason?:
+    | 'threshold_met'
+    | 'threshold_not_met'
+    | 'tie_add'
+    | 'tie_reject'
+    | 'force_add'
+    | 'canceled_by_suggester'
+    | 'canceled_by_owner'
+    | null
   status: string
-  vote_count: number
+  upvote_count: number
+  downvote_count: number
+  my_reaction?: 'up' | 'down' | null
+  upvoter_display_names?: string[]
+  downvoter_display_names?: string[]
+  collaborators_left_to_vote_count?: number
+  collaborators_left_to_vote_names?: string[]
+  can_cancel?: boolean
+  can_force_add?: boolean
 }
 
 export type ProviderTrack = {
@@ -42,6 +63,8 @@ export type ProviderTrack = {
   artwork_url?: string | null
   url?: string | null
   added_at?: string | null
+  added_source?: 'votuna_suggestion' | 'playlist_utils' | 'outside_votuna'
+  added_by_label?: string | null
   suggested_by_user_id?: number | null
   suggested_by_display_name?: string | null
 }
