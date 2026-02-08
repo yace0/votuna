@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { Space_Grotesk } from 'next/font/google'
+import Footer from '../components/Footer'
 import Navbar from '../components/Navbar'
 import QueryProvider from '../components/QueryProvider'
 import ThemeManager from '../components/ThemeManager'
@@ -45,11 +46,12 @@ export default function RootLayout({
         />
       </head>
       <body className={`${spaceGrotesk.className} antialiased`}>
-        <div className="min-h-screen">
+        <div className="flex min-h-screen flex-col">
           <QueryProvider>
             <ThemeManager />
             <Navbar />
-            {children}
+            <div className="flex-1">{children}</div>
+            <Footer />
           </QueryProvider>
         </div>
       </body>
