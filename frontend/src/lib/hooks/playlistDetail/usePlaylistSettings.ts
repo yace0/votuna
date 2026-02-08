@@ -20,7 +20,6 @@ export function usePlaylistSettings({
 }: UsePlaylistSettingsArgs) {
   const [settingsForm, setSettingsForm] = useState<PlaylistSettingsForm>({
     required_vote_percent: 60,
-    auto_add_on_threshold: true,
   })
   const [settingsStatus, setSettingsStatus] = useState('')
 
@@ -28,7 +27,6 @@ export function usePlaylistSettings({
     if (!settings) return
     setSettingsForm({
       required_vote_percent: settings.required_vote_percent,
-      auto_add_on_threshold: settings.auto_add_on_threshold,
     })
   }, [settings])
 
@@ -67,7 +65,5 @@ export function usePlaylistSettings({
     saveSettings,
     setRequiredVotePercent: (value: number) =>
       setSettingsForm((prev) => ({ ...prev, required_vote_percent: value })),
-    setAutoAddOnThreshold: (value: boolean) =>
-      setSettingsForm((prev) => ({ ...prev, auto_add_on_threshold: value })),
   }
 }

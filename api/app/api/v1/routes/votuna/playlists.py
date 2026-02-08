@@ -101,7 +101,6 @@ async def create_votuna_playlist(
         {
             "playlist_id": playlist.id,
             "required_vote_percent": 60,
-            "auto_add_on_threshold": True,
         },
     )
 

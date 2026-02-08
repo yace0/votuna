@@ -57,7 +57,7 @@ async def maybe_auto_add_track(
     suggestion: VotunaTrackSuggestion,
 ) -> None:
     settings = votuna_playlist_settings_crud.get_by_playlist_id(db, playlist.id)
-    if not settings or not settings.auto_add_on_threshold:
+    if not settings:
         return
     votes = votuna_track_vote_crud.count_votes(db, suggestion.id)
     members = votuna_playlist_member_crud.count_members(db, playlist.id)
@@ -186,12 +186,12 @@ async def create_suggestion(
                     "user_id": current_user.id,
                 },
             )
-            try:
-                await maybe_auto_add_track(db, playlist, existing)
-            except ProviderAuthError:
-                raise_provider_auth(current_user, owner_id=playlist.owner_user_id)
-            except ProviderAPIError as exc:
-                raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+        try:
+            await maybe_auto_add_track(db, playlist, existing)
+        except ProviderAuthError:
+            raise_provider_auth(current_user, owner_id=playlist.owner_user_id)
+        except ProviderAPIError as exc:
+            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
         return serialize_suggestion(db, existing)
 
     suggestion = votuna_track_suggestion_crud.create(
@@ -245,10 +245,10 @@ async def vote_on_suggestion(
                 "user_id": current_user.id,
             },
         )
-        try:
-            await maybe_auto_add_track(db, playlist, suggestion)
-        except ProviderAuthError:
-            raise_provider_auth(current_user, owner_id=playlist.owner_user_id)
-        except ProviderAPIError as exc:
-            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+    try:
+        await maybe_auto_add_track(db, playlist, suggestion)
+    except ProviderAuthError:
+        raise_provider_auth(current_user, owner_id=playlist.owner_user_id)
+    except ProviderAPIError as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
     return serialize_suggestion(db, suggestion)

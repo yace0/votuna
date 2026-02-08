@@ -117,13 +117,11 @@ export default function PlaylistDetailPage() {
               <div className="space-y-6">
                 <PlaylistSettingsSection
                   requiredVotePercent={state.settingsForm.required_vote_percent}
-                  autoAddOnThreshold={state.settingsForm.auto_add_on_threshold}
                   canEditSettings={state.canEditSettings}
                   isSaving={state.isSettingsSaving}
                   settingsStatus={state.settingsStatus}
                   onSaveSettings={state.saveSettings}
                   onRequiredVotePercentChange={state.setRequiredVotePercent}
-                  onAutoAddOnThresholdChange={state.setAutoAddOnThreshold}
                 />
                 <CollaboratorsSection
                   members={state.members}

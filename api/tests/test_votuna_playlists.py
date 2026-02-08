@@ -31,7 +31,7 @@ def test_create_votuna_playlist_from_provider(auth_client, provider_stub):
     data = response.json()
     assert data["provider_playlist_id"] == "provider-2"
     assert data["title"] == "Synced Playlist"
-    assert data["settings"]["auto_add_on_threshold"] is True
+    assert data["settings"]["required_vote_percent"] == 60
 
 
 def test_create_votuna_playlist_conflict_for_existing_provider_playlist(
@@ -66,12 +66,11 @@ def test_create_votuna_playlist_requires_title(auth_client):
 def test_update_settings_owner(auth_client, votuna_playlist):
     response = auth_client.patch(
         f"/api/v1/votuna/playlists/{votuna_playlist.id}/settings",
-        json={"required_vote_percent": 75, "auto_add_on_threshold": False},
+        json={"required_vote_percent": 75},
     )
     assert response.status_code == 200
     data = response.json()
     assert data["required_vote_percent"] == 75
-    assert data["auto_add_on_threshold"] is False
 
 
 def test_update_settings_non_owner_forbidden(other_auth_client, votuna_playlist):

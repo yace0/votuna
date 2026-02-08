@@ -387,7 +387,6 @@ def votuna_playlist(db_session, user):
         {
             "playlist_id": playlist.id,
             "required_vote_percent": 60,
-            "auto_add_on_threshold": False,
         },
     )
     votuna_playlist_member_crud.create(
@@ -396,6 +395,19 @@ def votuna_playlist(db_session, user):
             "playlist_id": playlist.id,
             "user_id": user.id,
             "role": "owner",
+        },
+    )
+    default_member = _create_user(
+        db_session,
+        provider_user_id=f"default-member-{uuid.uuid4().hex}",
+        email=f"default-member-{uuid.uuid4().hex}@example.com",
+    )
+    votuna_playlist_member_crud.create(
+        db_session,
+        {
+            "playlist_id": playlist.id,
+            "user_id": default_member.id,
+            "role": "member",
         },
     )
     return playlist

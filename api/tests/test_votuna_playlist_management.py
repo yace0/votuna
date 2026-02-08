@@ -24,7 +24,6 @@ def _create_owned_votuna_playlist(db_session, owner_user, provider_playlist_id: 
         {
             "playlist_id": playlist.id,
             "required_vote_percent": 60,
-            "auto_add_on_threshold": False,
         },
     )
     votuna_playlist_member_crud.create(

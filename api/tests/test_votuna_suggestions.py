@@ -352,7 +352,7 @@ def test_create_suggestion_auto_add_provider_error_returns_502(
     votuna_playlist_settings_crud.update(
         db_session,
         settings,
-        {"auto_add_on_threshold": True, "required_vote_percent": 60},
+        {"required_vote_percent": 50},
     )
 
     async def _raise_provider_error(self, provider_playlist_id: str, track_ids):
@@ -387,7 +387,7 @@ def test_vote_auto_add_updates_status(
     votuna_playlist_settings_crud.update(
         db_session,
         settings,
-        {"auto_add_on_threshold": True, "required_vote_percent": 60},
+        {"required_vote_percent": 60},
     )
     votuna_playlist_member_crud.create(
         db_session,
@@ -431,7 +431,7 @@ def test_vote_auto_add_provider_error_returns_502(
     votuna_playlist_settings_crud.update(
         db_session,
         settings,
-        {"auto_add_on_threshold": True, "required_vote_percent": 60},
+        {"required_vote_percent": 60},
     )
     votuna_playlist_member_crud.create(
         db_session,
@@ -513,6 +513,44 @@ def test_vote_same_user_twice_is_idempotent(auth_client, votuna_playlist, provid
     data = vote_response.json()
     assert data["vote_count"] == 1
     assert len(data["voter_display_names"]) == 1
+
+
+def test_vote_same_user_rechecks_auto_add_threshold(
+    auth_client,
+    db_session,
+    votuna_playlist,
+    user,
+    provider_stub,
+):
+    suggestion = votuna_track_suggestion_crud.create(
+        db_session,
+        {
+            "playlist_id": votuna_playlist.id,
+            "provider_track_id": "track-auto-recheck",
+            "track_title": "Auto Recheck",
+            "suggested_by_user_id": user.id,
+            "status": "pending",
+        },
+    )
+    votuna_track_vote_crud.create(
+        db_session,
+        {
+            "suggestion_id": suggestion.id,
+            "user_id": user.id,
+        },
+    )
+    settings = votuna_playlist_settings_crud.get_by_playlist_id(db_session, votuna_playlist.id)
+    votuna_playlist_settings_crud.update(
+        db_session,
+        settings,
+        {"required_vote_percent": 50},
+    )
+
+    response = auth_client.post(f"/api/v1/votuna/suggestions/{suggestion.id}/vote")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "accepted"
+    assert data["vote_count"] == 1
 
 
 def test_vote_non_pending_does_not_create_vote(

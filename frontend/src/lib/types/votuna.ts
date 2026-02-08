@@ -2,12 +2,10 @@ export type PlaylistSettings = {
   id: number
   playlist_id: number
   required_vote_percent: number
-  auto_add_on_threshold: boolean
 }
 
 export type PlaylistSettingsForm = {
   required_vote_percent: number
-  auto_add_on_threshold: boolean
 }
 
 export type VotunaPlaylist = {
