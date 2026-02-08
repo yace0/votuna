@@ -80,7 +80,13 @@ async def save_avatar_upload(upload: UploadFile, user_id: int) -> str:
 
     filename_ext = Path(upload.filename or "").suffix.lower()
     extension = _extension_from_content_type(content_type, filename_ext)
-    avatar_dir = _avatar_dir()
+    try:
+        avatar_dir = _avatar_dir()
+    except OSError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Avatar storage is unavailable",
+        ) from exc
     destination = avatar_dir / _new_avatar_filename(user_id, extension)
 
     data = await upload.read()
@@ -90,7 +96,13 @@ async def save_avatar_upload(upload: UploadFile, user_id: int) -> str:
     if len(data) > settings.MAX_AVATAR_BYTES:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Avatar file is too large")
 
-    destination.write_bytes(data)
+    try:
+        destination.write_bytes(data)
+    except OSError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Avatar storage is unavailable",
+        ) from exc
     return _relative_avatar_path(destination)
 
 
@@ -99,7 +111,10 @@ async def save_avatar_from_url(avatar_url: str, user_id: int) -> Optional[str]:
     if not avatar_url:
         return None
 
-    avatar_dir = _avatar_dir()
+    try:
+        avatar_dir = _avatar_dir()
+    except OSError:
+        return None
     path_suffix = Path(urlparse(avatar_url).path).suffix.lower()
 
     try:
@@ -119,7 +134,10 @@ async def save_avatar_from_url(avatar_url: str, user_id: int) -> Optional[str]:
 
     extension = _extension_from_content_type(content_type, path_suffix)
     destination = avatar_dir / _new_avatar_filename(user_id, extension)
-    destination.write_bytes(data)
+    try:
+        destination.write_bytes(data)
+    except OSError:
+        return None
     return _relative_avatar_path(destination)
 
 
