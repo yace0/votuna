@@ -174,38 +174,32 @@ class SoundcloudProvider(MusicProviderClient):
         normalized_id = cls._normalize_track_id(value) or value.strip()
         return normalized_id.lower()
 
-    @staticmethod
-    def _track_id_json_value(normalized_id: str) -> int | str:
-        if normalized_id.isdigit() and len(normalized_id) <= 18:
-            return int(normalized_id)
-        return normalized_id
-
     @classmethod
-    def _build_track_reference(cls, value: str) -> tuple[dict[str, int | str], str] | None:
+    def _build_track_reference(cls, value: str) -> tuple[dict[str, str], str] | None:
         raw_value = value.strip()
         if not raw_value:
             return None
         normalized_id = cls._normalize_track_id(raw_value)
         if not normalized_id:
             return None
-        return {"id": cls._track_id_json_value(normalized_id)}, cls._track_reference_key(normalized_id)
+        return {"id": normalized_id}, cls._track_reference_key(normalized_id)
 
     @classmethod
-    def _extract_track_reference_from_payload(cls, payload: Any) -> tuple[dict[str, int | str], str] | None:
+    def _extract_track_reference_from_payload(cls, payload: Any) -> tuple[dict[str, str], str] | None:
         if not isinstance(payload, dict):
             return None
         track_id = payload.get("id")
         if track_id is not None:
             normalized_id = cls._normalize_track_id(str(track_id))
             if normalized_id:
-                return {"id": cls._track_id_json_value(normalized_id)}, cls._track_reference_key(normalized_id)
+                return {"id": normalized_id}, cls._track_reference_key(normalized_id)
         urn_value = payload.get("urn")
         if isinstance(urn_value, str):
             normalized_urn = cls._normalize_track_urn(urn_value)
             if normalized_urn:
                 normalized_id = cls._normalize_track_id(normalized_urn)
                 if normalized_id:
-                    return {"id": cls._track_id_json_value(normalized_id)}, cls._track_reference_key(normalized_id)
+                    return {"id": normalized_id}, cls._track_reference_key(normalized_id)
         return None
 
     def _to_provider_track(self, payload: Any) -> ProviderTrack | None:
@@ -619,7 +613,7 @@ class SoundcloudProvider(MusicProviderClient):
             self._raise_for_status(response)
             payload = response.json()
             existing_tracks = payload.get("tracks", []) or []
-            existing_track_refs: list[dict[str, int | str]] = []
+            existing_track_refs: list[dict[str, str]] = []
             existing_keys: set[str] = set()
             for track in existing_tracks:
                 reference = self._extract_track_reference_from_payload(track)
@@ -672,7 +666,7 @@ class SoundcloudProvider(MusicProviderClient):
             self._raise_for_status(response)
             payload = response.json()
             existing_tracks = payload.get("tracks", []) or []
-            kept_track_refs: list[dict[str, int | str]] = []
+            kept_track_refs: list[dict[str, str]] = []
             seen_keys: set[str] = set()
             for track in existing_tracks:
                 reference = self._extract_track_reference_from_payload(track)

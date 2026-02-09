@@ -94,12 +94,12 @@ def test_add_tracks_sends_id_references_without_urn(monkeypatch):
     payload = captured["json"]
     assert isinstance(payload, dict)
     tracks = payload["playlist"]["tracks"]
-    assert {"id": 123} in tracks
-    assert {"id": 555} in tracks
+    assert {"id": "123"} in tracks
+    assert {"id": "555"} in tracks
     assert {"id": "9223372036854775808"} in tracks
-    assert {"id": 777} in tracks
+    assert {"id": "777"} in tracks
     assert all("urn" not in track for track in tracks)
-    assert tracks.count({"id": 555}) == 1
+    assert tracks.count({"id": "555"}) == 1
 
 
 def test_track_exists_matches_id_against_urn():
