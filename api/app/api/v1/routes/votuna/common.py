@@ -7,7 +7,7 @@ from app.models.votuna_playlist import VotunaPlaylist
 from app.crud.user import user_crud
 from app.crud.votuna_playlist import votuna_playlist_crud
 from app.crud.votuna_playlist_member import votuna_playlist_member_crud
-from app.services.music_providers import get_music_provider
+from app.services.music_providers import get_provider_client_for_user
 
 
 def get_playlist_or_404(db: Session, playlist_id: int) -> VotunaPlaylist:
@@ -40,14 +40,14 @@ def has_collaborators(db: Session, playlist: VotunaPlaylist) -> bool:
     )
 
 
-def get_provider_client(provider: str, user: User):
+def get_provider_client(provider: str, user: User, db: Session | None = None):
     if not user.access_token:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Missing provider access token",
         )
     try:
-        return get_music_provider(provider, user.access_token)
+        return get_provider_client_for_user(provider, user, db=db)
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
@@ -56,7 +56,7 @@ def get_owner_client(db: Session, playlist: VotunaPlaylist):
     owner = user_crud.get(db, playlist.owner_user_id)
     if not owner:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Playlist owner not found")
-    return get_provider_client(playlist.provider, owner)
+    return get_provider_client(playlist.provider, owner, db=db)
 
 
 def raise_provider_auth(current_user: User, owner_id: int | None = None) -> None:

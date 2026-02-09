@@ -7,6 +7,7 @@ from app.services.music_providers.base import (
     ProviderAPIError,
 )
 from app.services.music_providers.factory import get_music_provider
+from app.services.music_providers.session import get_provider_client_for_user
 
 __all__ = [
     "MusicProviderClient",
@@ -16,4 +17,5 @@ __all__ = [
     "ProviderAuthError",
     "ProviderAPIError",
     "get_music_provider",
+    "get_provider_client_for_user",
 ]

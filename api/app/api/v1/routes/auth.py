@@ -1,6 +1,6 @@
 """Auth routes"""
 from datetime import datetime, timezone
-from typing import Any, cast
+from typing import Any, Mapping, cast
 from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
@@ -26,6 +26,7 @@ from app.utils.avatar_storage import (
     get_avatar_file_path,
     save_avatar_from_url,
 )
+from app.utils.token_expiry import coerce_expires_at, expires_at_from_payload
 
 router = APIRouter()
 
@@ -48,6 +49,21 @@ def _local_avatar_exists(avatar_url: str | None) -> bool:
         return get_avatar_file_path(str(avatar_url)).exists()
     except HTTPException:
         return False
+
+
+def _extract_sso_expires_at(sso: SSOProtocol) -> datetime | None:
+    expires_at = coerce_expires_at(getattr(sso, "expires_at", None))
+    if expires_at is not None:
+        return expires_at
+
+    oauth_client = getattr(sso, "_oauth_client", None)
+    token_payload = getattr(oauth_client, "token", None)
+    if isinstance(token_payload, Mapping):
+        expires_at = expires_at_from_payload(token_payload)
+        if expires_at is not None:
+            return expires_at
+
+    return coerce_expires_at(getattr(oauth_client, "expires_at", None))
 
 
 @router.get("/login/{provider}")
@@ -103,6 +119,9 @@ async def callback_provider(
     try:
         async with sso:
             openid: OpenIDUserProtocol = await sso.verify_and_process(request)
+            access_token = getattr(sso, "access_token", None)
+            refresh_token = getattr(sso, "refresh_token", None)
+            expires_at = _extract_sso_expires_at(sso)
     except Exception as exc:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc))
     provider_user_id = get_openid_value(openid, *provider_config.id_keys)
@@ -177,20 +196,18 @@ async def callback_provider(
         ):
             user = user_crud.update(db, user, {"avatar_url": None})
 
-    access_token = getattr(sso, "access_token", None)
-    refresh_token = getattr(sso, "refresh_token", None)
-    expires_at = getattr(sso, "expires_at", None)
-    if isinstance(expires_at, (int, float)):
-        expires_at = datetime.fromtimestamp(expires_at, tz=timezone.utc)
     if access_token or refresh_token or expires_at:
+        updates: dict[str, Any] = {
+            "token_expires_at": expires_at,
+        }
+        if access_token:
+            updates["access_token"] = access_token
+        if refresh_token:
+            updates["refresh_token"] = refresh_token
         user_crud.update(
             db,
             user,
-            {
-                "access_token": access_token,
-                "refresh_token": refresh_token,
-                "token_expires_at": expires_at,
-            },
+            updates,
         )
 
     user_id = cast(int, user.id)

@@ -1,22 +1,28 @@
 """Provider playlist routes"""
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.orm import Session
 
 from app.auth.dependencies import get_current_user
+from app.db.session import get_db
 from app.models.user import User
 from app.schemas.votuna_playlist import ProviderPlaylistOut, ProviderPlaylistCreate, MusicProvider
-from app.services.music_providers import get_music_provider, ProviderAuthError, ProviderAPIError
+from app.services.music_providers import (
+    ProviderAuthError,
+    ProviderAPIError,
+    get_provider_client_for_user,
+)
 
 router = APIRouter()
 
 
-def _get_provider_client(provider: str, user: User):
+def _get_provider_client(provider: str, user: User, db: Session):
     if not user.access_token:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Missing provider access token",
         )
     try:
-        return get_music_provider(provider, user.access_token)
+        return get_provider_client_for_user(provider, user, db=db)
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
@@ -36,10 +42,11 @@ def _to_provider_playlist_out(playlist) -> ProviderPlaylistOut:
 @router.get("/providers/{provider}", response_model=list[ProviderPlaylistOut])
 async def list_provider_playlists(
     provider: MusicProvider,
+    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """List playlists from the provider for the current user."""
-    client = _get_provider_client(provider, current_user)
+    client = _get_provider_client(provider, current_user, db)
     try:
         playlists = await client.list_playlists()
     except ProviderAuthError as exc:
@@ -54,10 +61,11 @@ async def search_provider_playlists(
     provider: MusicProvider,
     q: str = Query(..., min_length=1),
     limit: int = Query(12, ge=1, le=25),
+    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """Search provider playlists by text."""
-    client = _get_provider_client(provider, current_user)
+    client = _get_provider_client(provider, current_user, db)
     try:
         playlists = await client.search_playlists(q, limit=limit)
     except ProviderAuthError as exc:
@@ -71,10 +79,11 @@ async def search_provider_playlists(
 async def resolve_provider_playlist(
     provider: MusicProvider,
     url: str = Query(..., min_length=1),
+    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """Resolve a provider playlist URL into playlist metadata."""
-    client = _get_provider_client(provider, current_user)
+    client = _get_provider_client(provider, current_user, db)
     try:
         playlist = await client.resolve_playlist_url(url)
     except ProviderAuthError as exc:
@@ -89,10 +98,11 @@ async def resolve_provider_playlist(
 async def create_provider_playlist(
     provider: MusicProvider,
     payload: ProviderPlaylistCreate,
+    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """Create a playlist on the provider."""
-    client = _get_provider_client(provider, current_user)
+    client = _get_provider_client(provider, current_user, db)
     try:
         playlist = await client.create_playlist(
             title=payload.title,

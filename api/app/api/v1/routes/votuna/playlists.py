@@ -75,7 +75,7 @@ async def create_votuna_playlist(
             detail="Title is required when creating a new provider playlist",
         )
 
-    client = get_provider_client(payload.provider, current_user)
+    client = get_provider_client(payload.provider, current_user, db=db)
 
     if payload.provider_playlist_id:
         existing = votuna_playlist_crud.get_by_provider_playlist_id(

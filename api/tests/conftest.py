@@ -517,8 +517,7 @@ def votuna_playlist(db_session, user):
 
 @pytest.fixture()
 def provider_stub(monkeypatch):
-    from app.api.v1.routes import playlists as playlists_routes
-    from app.api.v1.routes.votuna import common as votuna_common
+    from app.services.music_providers import session as provider_session
 
     DummyProvider.playlists = [
         ProviderPlaylist(
@@ -720,6 +719,5 @@ def provider_stub(monkeypatch):
     def _factory(provider: str, access_token: str):
         return DummyProvider(access_token)
 
-    monkeypatch.setattr(playlists_routes, "get_music_provider", _factory)
-    monkeypatch.setattr(votuna_common, "get_music_provider", _factory)
+    monkeypatch.setattr(provider_session, "get_music_provider", _factory)
     return DummyProvider
