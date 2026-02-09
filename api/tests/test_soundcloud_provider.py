@@ -32,7 +32,7 @@ def test_to_provider_user_maps_handle_and_display_name():
     assert mapped.profile_url == "https://soundcloud.com/dj-handle"
 
 
-def test_to_provider_track_uses_urn_when_id_is_missing():
+def test_to_provider_track_uses_id_from_urn_when_id_is_missing():
     provider = SoundcloudProvider("token")
     mapped = provider._to_provider_track(
         {
@@ -44,11 +44,11 @@ def test_to_provider_track_uses_urn_when_id_is_missing():
     )
 
     assert mapped is not None
-    assert mapped.provider_track_id == "urn:soundcloud:tracks:999"
+    assert mapped.provider_track_id == "999"
     assert mapped.title == "URN Track"
 
 
-def test_add_tracks_sends_string_and_urn_references_without_int_cast(monkeypatch):
+def test_add_tracks_sends_id_references_without_urn(monkeypatch):
     provider = SoundcloudProvider("token")
     captured: dict[str, object] = {}
     playlist_payload = {
@@ -94,11 +94,12 @@ def test_add_tracks_sends_string_and_urn_references_without_int_cast(monkeypatch
     payload = captured["json"]
     assert isinstance(payload, dict)
     tracks = payload["playlist"]["tracks"]
-    assert {"id": "123"} in tracks
-    assert {"urn": "urn:soundcloud:tracks:555"} in tracks
+    assert {"id": 123} in tracks
+    assert {"id": 555} in tracks
     assert {"id": "9223372036854775808"} in tracks
-    assert {"urn": "urn:soundcloud:tracks:777"} in tracks
-    assert tracks.count({"urn": "urn:soundcloud:tracks:555"}) == 1
+    assert {"id": 777} in tracks
+    assert all("urn" not in track for track in tracks)
+    assert tracks.count({"id": 555}) == 1
 
 
 def test_track_exists_matches_id_against_urn():

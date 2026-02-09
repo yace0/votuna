@@ -41,25 +41,28 @@ class SoundcloudProvider(MusicProviderClient):
             request = exc.request
             request_method = request.method if request is not None else "UNKNOWN"
             request_path = request.url.path if request is not None else "unknown"
+            request_body_preview = self._extract_request_body_preview(request)
             provider_message, body_preview = self._extract_error_context(exc.response)
 
             if status_code in {401, 403}:
                 logger.warning(
-                    "SoundCloud auth error on %s %s (status=%s, message=%s, body=%s)",
+                    "SoundCloud auth error on %s %s (status=%s, message=%s, body=%s, request_body=%s)",
                     request_method,
                     request_path,
                     status_code,
                     provider_message or "-",
                     body_preview or "-",
+                    request_body_preview or "-",
                 )
                 raise ProviderAuthError("SoundCloud authorization expired or invalid") from exc
             logger.error(
-                "SoundCloud API error on %s %s (status=%s, message=%s, body=%s)",
+                "SoundCloud API error on %s %s (status=%s, message=%s, body=%s, request_body=%s)",
                 request_method,
                 request_path,
                 status_code,
                 provider_message or "-",
                 body_preview or "-",
+                request_body_preview or "-",
             )
             detail_suffix = f": {provider_message}" if provider_message else ""
             raise ProviderAPIError(
@@ -71,6 +74,18 @@ class SoundcloudProvider(MusicProviderClient):
     def _truncate(value: str, *, max_chars: int = 600) -> str:
         text = value.strip().replace("\n", " ")
         return text if len(text) <= max_chars else f"{text[:max_chars]}..."
+
+    @classmethod
+    def _extract_request_body_preview(cls, request: httpx.Request | None) -> str | None:
+        if request is None:
+            return None
+        content = request.content
+        if not content:
+            return None
+        try:
+            return cls._truncate(content.decode("utf-8", errors="replace"))
+        except Exception:
+            return None
 
     @classmethod
     def _extract_error_context(cls, response: httpx.Response) -> tuple[str | None, str | None]:
@@ -159,35 +174,39 @@ class SoundcloudProvider(MusicProviderClient):
         normalized_id = cls._normalize_track_id(value) or value.strip()
         return normalized_id.lower()
 
+    @staticmethod
+    def _track_id_json_value(normalized_id: str) -> int | str:
+        if normalized_id.isdigit() and len(normalized_id) <= 18:
+            return int(normalized_id)
+        return normalized_id
+
     @classmethod
-    def _build_track_reference(cls, value: str) -> tuple[dict[str, str], str] | None:
+    def _build_track_reference(cls, value: str) -> tuple[dict[str, int | str], str] | None:
         raw_value = value.strip()
         if not raw_value:
             return None
-        normalized_urn = cls._normalize_track_urn(raw_value)
-        if normalized_urn:
-            return {"urn": normalized_urn}, cls._track_reference_key(normalized_urn)
         normalized_id = cls._normalize_track_id(raw_value)
         if not normalized_id:
             return None
-        return {"id": normalized_id}, cls._track_reference_key(normalized_id)
+        return {"id": cls._track_id_json_value(normalized_id)}, cls._track_reference_key(normalized_id)
 
     @classmethod
-    def _extract_track_reference_from_payload(cls, payload: Any) -> tuple[dict[str, str], str] | None:
+    def _extract_track_reference_from_payload(cls, payload: Any) -> tuple[dict[str, int | str], str] | None:
         if not isinstance(payload, dict):
             return None
+        track_id = payload.get("id")
+        if track_id is not None:
+            normalized_id = cls._normalize_track_id(str(track_id))
+            if normalized_id:
+                return {"id": cls._track_id_json_value(normalized_id)}, cls._track_reference_key(normalized_id)
         urn_value = payload.get("urn")
         if isinstance(urn_value, str):
             normalized_urn = cls._normalize_track_urn(urn_value)
             if normalized_urn:
-                return {"urn": normalized_urn}, cls._track_reference_key(normalized_urn)
-        track_id = payload.get("id")
-        if track_id is None:
-            return None
-        normalized_id = cls._normalize_track_id(str(track_id))
-        if not normalized_id:
-            return None
-        return {"id": normalized_id}, cls._track_reference_key(normalized_id)
+                normalized_id = cls._normalize_track_id(normalized_urn)
+                if normalized_id:
+                    return {"id": cls._track_id_json_value(normalized_id)}, cls._track_reference_key(normalized_id)
+        return None
 
     def _to_provider_track(self, payload: Any) -> ProviderTrack | None:
         if not isinstance(payload, dict):
@@ -195,7 +214,7 @@ class SoundcloudProvider(MusicProviderClient):
         track_ref = self._extract_track_reference_from_payload(payload)
         if not track_ref:
             return None
-        track_id_value = track_ref[0]["urn"] if "urn" in track_ref[0] else track_ref[0]["id"]
+        track_id_value = str(track_ref[0]["id"])
         user_payload = payload.get("user")
         user = user_payload if isinstance(user_payload, dict) else {}
         return ProviderTrack(
@@ -600,7 +619,7 @@ class SoundcloudProvider(MusicProviderClient):
             self._raise_for_status(response)
             payload = response.json()
             existing_tracks = payload.get("tracks", []) or []
-            existing_track_refs: list[dict[str, str]] = []
+            existing_track_refs: list[dict[str, int | str]] = []
             existing_keys: set[str] = set()
             for track in existing_tracks:
                 reference = self._extract_track_reference_from_payload(track)
@@ -653,7 +672,7 @@ class SoundcloudProvider(MusicProviderClient):
             self._raise_for_status(response)
             payload = response.json()
             existing_tracks = payload.get("tracks", []) or []
-            kept_track_refs: list[dict[str, str]] = []
+            kept_track_refs: list[dict[str, int | str]] = []
             seen_keys: set[str] = set()
             for track in existing_tracks:
                 reference = self._extract_track_reference_from_payload(track)
