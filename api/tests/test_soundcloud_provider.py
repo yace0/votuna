@@ -118,3 +118,38 @@ def test_track_exists_matches_id_against_urn():
     assert asyncio.run(provider.track_exists("playlist-1", "42")) is True
     assert asyncio.run(provider.track_exists("playlist-1", "urn:soundcloud:tracks:42")) is True
     assert asyncio.run(provider.track_exists("playlist-1", "43")) is False
+
+
+def test_resolve_track_url_uses_follow_redirects(monkeypatch):
+    provider = SoundcloudProvider("token")
+    captured: dict[str, object] = {}
+
+    class _FakeAsyncClient:
+        def __init__(self, *args, **kwargs):
+            captured["follow_redirects"] = kwargs.get("follow_redirects")
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def get(self, url: str, headers: dict, params: dict):
+            request = httpx.Request("GET", f"https://api.soundcloud.com{url}")
+            return httpx.Response(
+                200,
+                request=request,
+                json={
+                    "kind": "track",
+                    "id": 321,
+                    "title": "Resolved Redirected Track",
+                    "user": {"username": "Artist"},
+                    "permalink_url": "https://soundcloud.com/test/resolved-redirected-track",
+                },
+            )
+
+    monkeypatch.setattr(httpx, "AsyncClient", _FakeAsyncClient)
+
+    mapped = asyncio.run(provider.resolve_track_url("https://soundcloud.com/test/resolved-redirected-track"))
+    assert captured["follow_redirects"] is True
+    assert mapped.provider_track_id == "321"

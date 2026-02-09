@@ -375,7 +375,7 @@ class SoundcloudProvider(MusicProviderClient):
         playlist_url = url.strip()
         if not playlist_url:
             raise ProviderAPIError("Playlist URL is required", status_code=400)
-        async with httpx.AsyncClient(base_url=self.base_url, timeout=15) as client:
+        async with httpx.AsyncClient(base_url=self.base_url, timeout=15, follow_redirects=True) as client:
             response = await client.get(
                 "/resolve",
                 headers=self._headers(),
@@ -516,7 +516,7 @@ class SoundcloudProvider(MusicProviderClient):
         track_url = url.strip()
         if not track_url:
             raise ProviderAPIError("Track URL is required", status_code=400)
-        async with httpx.AsyncClient(base_url=self.base_url, timeout=15) as client:
+        async with httpx.AsyncClient(base_url=self.base_url, timeout=15, follow_redirects=True) as client:
             response = await client.get(
                 "/resolve",
                 headers=self._headers(),
