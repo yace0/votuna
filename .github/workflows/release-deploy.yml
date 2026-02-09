@@ -91,7 +91,7 @@ jobs:
 
       - name: Deploy API service to Railway
         working-directory: api
-        run: railway --project "$RAILWAY_API_PROJECT_ID" --environment "$RAILWAY_API_ENVIRONMENT_ID" --service "$RAILWAY_API_SERVICE_ID" up --detach --ci
+        run: railway up --project "$RAILWAY_API_PROJECT_ID" --environment "$RAILWAY_API_ENVIRONMENT_ID" --service "$RAILWAY_API_SERVICE_ID" --detach --ci
 
   deploy-frontend:
     name: deploy-frontend
@@ -118,4 +118,4 @@ jobs:
 
       - name: Deploy frontend service to Railway
         working-directory: frontend
-        run: railway --project "$RAILWAY_FRONTEND_PROJECT_ID" --environment "$RAILWAY_FRONTEND_ENVIRONMENT_ID" --service "$RAILWAY_FRONTEND_SERVICE_ID" up --detach --ci
+        run: railway up --project "$RAILWAY_FRONTEND_PROJECT_ID" --environment "$RAILWAY_FRONTEND_ENVIRONMENT_ID" --service "$RAILWAY_FRONTEND_SERVICE_ID" --detach --ci
