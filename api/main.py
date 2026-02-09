@@ -56,7 +56,7 @@ app = FastAPI(
 
 @app.middleware("http")
 async def log_non_success_responses(request: Request, call_next):
-    """Log non-2xx responses application-wide for easier production debugging."""
+    """Log 4xx/5xx responses application-wide for easier production debugging."""
     started_at = time.perf_counter()
     try:
         response = await call_next(request)
@@ -71,7 +71,7 @@ async def log_non_success_responses(request: Request, call_next):
         raise
 
     status_code = response.status_code
-    if status_code >= 300:
+    if status_code >= 400:
         elapsed_ms = (time.perf_counter() - started_at) * 1000
         body_preview = _body_preview_from_response(status_code, response)
         log_parts = [

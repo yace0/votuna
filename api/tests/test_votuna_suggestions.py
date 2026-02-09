@@ -306,6 +306,39 @@ def test_duplicate_suggestion_from_second_member_resolves(
     assert data["resolution_reason"] == "threshold_met"
 
 
+def test_duplicate_suggestion_large_soundcloud_style_track_id_resolves(
+    client,
+    db_session,
+    votuna_playlist,
+    user,
+    other_user,
+    provider_stub,
+):
+    _set_known_members(db_session, votuna_playlist, user.id, [other_user.id])
+    large_track_id = "2249413313"
+
+    create_response = _client_as(client, user).post(
+        f"/api/v1/votuna/playlists/{votuna_playlist.id}/suggestions",
+        json={"provider_track_id": large_track_id},
+    )
+    assert create_response.status_code == 200
+    assert create_response.json()["status"] == "pending"
+
+    vote_response = _client_as(client, other_user).post(
+        f"/api/v1/votuna/playlists/{votuna_playlist.id}/suggestions",
+        json={"provider_track_id": large_track_id},
+    )
+    assert vote_response.status_code == 200
+    data = vote_response.json()
+    assert data["status"] == "accepted"
+    assert data["resolution_reason"] == "threshold_met"
+
+    assert any(
+        call["provider_playlist_id"] == votuna_playlist.provider_playlist_id and large_track_id in call["track_ids"]
+        for call in provider_stub.add_tracks_calls
+    )
+
+
 def test_duplicate_suggestion_by_same_user_is_idempotent(
     auth_client,
     db_session,

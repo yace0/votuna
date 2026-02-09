@@ -71,7 +71,7 @@ class SoundcloudProvider(MusicProviderClient):
             ) from exc
 
     @staticmethod
-    def _truncate(value: str, *, max_chars: int = 600) -> str:
+    def _truncate(value: str, *, max_chars: int = 300) -> str:
         text = value.strip().replace("\n", " ")
         return text if len(text) <= max_chars else f"{text[:max_chars]}..."
 
