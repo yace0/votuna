@@ -1,10 +1,11 @@
-from fastapi import FastAPI, Depends, status
+from fastapi import FastAPI, Depends, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 import logging
 import sys
+import time
 
 from app.api.v1.router import router as v1_router
 from app.auth.dependencies import AUTH_EXPIRED_HEADER
@@ -18,6 +19,20 @@ logging.basicConfig(
     handlers=[logging.StreamHandler(sys.stdout)],
 )
 logger = logging.getLogger(__name__)
+
+
+def _body_preview_from_response(status_code: int, response) -> str | None:
+    """Return a short, log-safe preview of an error response body."""
+    if status_code < 400:
+        return None
+    raw_body = getattr(response, "body", None)
+    if not isinstance(raw_body, (bytes, bytearray)) or not raw_body:
+        return None
+    preview = raw_body.decode("utf-8", errors="replace").strip().replace("\n", " ")
+    if not preview:
+        return None
+    max_chars = 600
+    return preview if len(preview) <= max_chars else f"{preview[:max_chars]}..."
 
 
 @asynccontextmanager
@@ -37,6 +52,40 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
 )
+
+
+@app.middleware("http")
+async def log_non_success_responses(request: Request, call_next):
+    """Log non-2xx responses application-wide for easier production debugging."""
+    started_at = time.perf_counter()
+    try:
+        response = await call_next(request)
+    except Exception:
+        elapsed_ms = (time.perf_counter() - started_at) * 1000
+        logger.exception(
+            "Unhandled exception on %s %s after %.2fms",
+            request.method,
+            request.url.path,
+            elapsed_ms,
+        )
+        raise
+
+    status_code = response.status_code
+    if status_code >= 300:
+        elapsed_ms = (time.perf_counter() - started_at) * 1000
+        body_preview = _body_preview_from_response(status_code, response)
+        log_parts = [
+            f"{request.method} {request.url.path}",
+            f"status={status_code}",
+            f"elapsed_ms={elapsed_ms:.2f}",
+        ]
+        if request.client and request.client.host:
+            log_parts.append(f"client={request.client.host}")
+        if body_preview:
+            log_parts.append(f"body={body_preview}")
+        logger.warning("HTTP response debug: %s", " | ".join(log_parts))
+
+    return response
 
 
 @app.middleware("http")

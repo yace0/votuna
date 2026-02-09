@@ -1,5 +1,6 @@
 """SoundCloud provider integration."""
 
+import logging
 from typing import Any, Sequence
 from urllib.parse import urlparse
 import httpx
@@ -13,6 +14,8 @@ from app.services.music_providers.base import (
     ProviderAuthError,
     ProviderAPIError,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class SoundcloudProvider(MusicProviderClient):
@@ -35,12 +38,88 @@ class SoundcloudProvider(MusicProviderClient):
             response.raise_for_status()
         except httpx.HTTPStatusError as exc:
             status_code = exc.response.status_code
+            request = exc.request
+            request_method = request.method if request is not None else "UNKNOWN"
+            request_path = request.url.path if request is not None else "unknown"
+            provider_message, body_preview = self._extract_error_context(exc.response)
+
             if status_code in {401, 403}:
+                logger.warning(
+                    "SoundCloud auth error on %s %s (status=%s, message=%s, body=%s)",
+                    request_method,
+                    request_path,
+                    status_code,
+                    provider_message or "-",
+                    body_preview or "-",
+                )
                 raise ProviderAuthError("SoundCloud authorization expired or invalid") from exc
+            logger.error(
+                "SoundCloud API error on %s %s (status=%s, message=%s, body=%s)",
+                request_method,
+                request_path,
+                status_code,
+                provider_message or "-",
+                body_preview or "-",
+            )
+            detail_suffix = f": {provider_message}" if provider_message else ""
             raise ProviderAPIError(
-                f"SoundCloud API error ({status_code})",
+                f"SoundCloud API error ({status_code}){detail_suffix}",
                 status_code=status_code,
             ) from exc
+
+    @staticmethod
+    def _truncate(value: str, *, max_chars: int = 600) -> str:
+        text = value.strip().replace("\n", " ")
+        return text if len(text) <= max_chars else f"{text[:max_chars]}..."
+
+    @classmethod
+    def _extract_error_context(cls, response: httpx.Response) -> tuple[str | None, str | None]:
+        payload: Any = None
+        try:
+            payload = response.json()
+        except Exception:
+            payload = None
+
+        provider_message: str | None = None
+        if isinstance(payload, dict):
+            error_field = payload.get("error")
+            if isinstance(error_field, str) and error_field.strip():
+                provider_message = error_field.strip()
+
+            if not provider_message:
+                message_field = payload.get("message") or payload.get("detail")
+                if isinstance(message_field, str) and message_field.strip():
+                    provider_message = message_field.strip()
+
+            if not provider_message:
+                errors_field = payload.get("errors")
+                if isinstance(errors_field, list) and errors_field:
+                    first_error = errors_field[0]
+                    if isinstance(first_error, dict):
+                        first_message = first_error.get("message") or first_error.get("error")
+                        if isinstance(first_message, str) and first_message.strip():
+                            provider_message = first_message.strip()
+                    elif isinstance(first_error, str) and first_error.strip():
+                        provider_message = first_error.strip()
+        elif isinstance(payload, list) and payload:
+            first_error = payload[0]
+            if isinstance(first_error, dict):
+                first_message = first_error.get("message") or first_error.get("error")
+                if isinstance(first_message, str) and first_message.strip():
+                    provider_message = first_message.strip()
+            elif isinstance(first_error, str) and first_error.strip():
+                provider_message = first_error.strip()
+
+        body_preview: str | None = None
+        if response.content:
+            try:
+                body_preview = cls._truncate(response.text)
+            except Exception:
+                body_preview = cls._truncate(response.content.decode("utf-8", errors="replace"))
+        if not body_preview and provider_message:
+            body_preview = provider_message
+
+        return provider_message, body_preview
 
     @staticmethod
     def _normalize_track_urn(value: str) -> str | None:
