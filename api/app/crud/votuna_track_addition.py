@@ -4,9 +4,10 @@ from sqlalchemy.orm import Session
 
 from app.crud.base import BaseCRUD
 from app.models.votuna_track_additions import VotunaTrackAddition
+from app.schemas import VotunaTrackAdditionCreate, VotunaTrackAdditionUpdate
 
 
-class VotunaTrackAdditionCRUD(BaseCRUD[VotunaTrackAddition, dict, dict]):
+class VotunaTrackAdditionCRUD(BaseCRUD[VotunaTrackAddition, VotunaTrackAdditionCreate, VotunaTrackAdditionUpdate]):
     def list_latest_for_tracks(
         self,
         db: Session,

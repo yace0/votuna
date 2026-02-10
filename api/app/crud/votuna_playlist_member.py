@@ -6,9 +6,10 @@ from sqlalchemy.orm import Session
 from app.crud.base import BaseCRUD
 from app.models.user import User
 from app.models.votuna_members import VotunaPlaylistMember
+from app.schemas import VotunaPlaylistMemberCreate, VotunaPlaylistMemberUpdate
 
 
-class VotunaPlaylistMemberCRUD(BaseCRUD[VotunaPlaylistMember, dict, dict]):
+class VotunaPlaylistMemberCRUD(BaseCRUD[VotunaPlaylistMember, VotunaPlaylistMemberCreate, VotunaPlaylistMemberUpdate]):
     def get_member(self, db: Session, playlist_id: int, user_id: int) -> Optional[VotunaPlaylistMember]:
         """Return a membership row if it exists."""
         return (
@@ -41,13 +42,14 @@ class VotunaPlaylistMemberCRUD(BaseCRUD[VotunaPlaylistMember, dict, dict]):
 
     def list_members(self, db: Session, playlist_id: int) -> list[tuple[VotunaPlaylistMember, User]]:
         """List members with user data for the playlist."""
-        return (
+        rows = (
             db.query(VotunaPlaylistMember, User)
             .join(User, User.id == VotunaPlaylistMember.user_id)
             .filter(VotunaPlaylistMember.playlist_id == playlist_id)
             .order_by(VotunaPlaylistMember.joined_at.asc())
             .all()
         )
+        return [(member, user) for member, user in rows]
 
 
 votuna_playlist_member_crud = VotunaPlaylistMemberCRUD(VotunaPlaylistMember)

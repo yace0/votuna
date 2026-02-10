@@ -5,6 +5,7 @@ from __future__ import annotations
 import inspect
 import logging
 from datetime import datetime, timedelta, timezone
+from typing import cast
 
 import httpx
 from sqlalchemy.orm import Session, object_session
@@ -12,7 +13,7 @@ from sqlalchemy.orm import Session, object_session
 from app.config.settings import settings
 from app.crud.user import user_crud
 from app.models.user import User
-from app.services.music_providers.base import ProviderAuthError
+from app.services.music_providers.base import MusicProviderClient, ProviderAuthError
 from app.services.music_providers.factory import get_music_provider
 from app.utils.token_expiry import coerce_expires_at, expires_at_from_payload
 
@@ -117,7 +118,7 @@ class ProviderClientWithRefresh:
         self._user = user
         self._db = db if db is not None else object_session(user)
         access_token = user.access_token or ""
-        self._client = get_music_provider(self._provider, access_token)
+        self._client: MusicProviderClient = get_music_provider(self._provider, access_token)
 
     async def _refresh_access_token(self, *, force: bool = False) -> bool:
         if self._provider != "soundcloud":
@@ -156,8 +157,8 @@ def get_provider_client_for_user(
     provider: str,
     user: User,
     db: Session | None = None,
-):
+) -> MusicProviderClient:
     """Build a provider client tied to a persisted user session."""
     if not user.access_token:
         raise ValueError("Missing provider access token")
-    return ProviderClientWithRefresh(provider, user, db=db)
+    return cast(MusicProviderClient, ProviderClientWithRefresh(provider, user, db=db))

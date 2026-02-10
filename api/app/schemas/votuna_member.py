@@ -12,3 +12,11 @@ class VotunaPlaylistMemberOut(BaseModel):
     role: str
     joined_at: datetime
     suggested_count: int = 0
+
+
+class VotunaPlaylistMemberCreate(BaseModel):
+    pass
+
+
+class VotunaPlaylistMemberUpdate(BaseModel):
+    pass

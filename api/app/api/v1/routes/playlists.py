@@ -8,6 +8,7 @@ from app.db.session import get_db
 from app.models.user import User
 from app.schemas.votuna_playlist import ProviderPlaylistOut, ProviderPlaylistCreate, MusicProvider
 from app.services.music_providers import (
+    MusicProviderClient,
     ProviderAuthError,
     ProviderAPIError,
     get_provider_client_for_user,
@@ -16,7 +17,7 @@ from app.services.music_providers import (
 router = APIRouter()
 
 
-def _get_provider_client(provider: str, user: User, db: Session):
+def _get_provider_client(provider: str, user: User, db: Session) -> MusicProviderClient:
     if not user.access_token:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

@@ -1,3 +1,4 @@
+from app.models.base import BaseModel
 from app.models.user import User
 from app.models.user_settings import UserSettings
 from app.models.votuna_playlist import VotunaPlaylist
@@ -10,6 +11,7 @@ from app.models.votuna_track_recommendation_declines import VotunaTrackRecommend
 from app.models.votuna_votes import VotunaTrackVote
 
 __all__ = [
+    "BaseModel",
     "User",
     "UserSettings",
     "VotunaPlaylist",

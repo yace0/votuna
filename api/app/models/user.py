@@ -1,9 +1,20 @@
 """User model"""
 
-from sqlalchemy import Column, String, Boolean, DateTime, UniqueConstraint
-from sqlalchemy.orm import relationship
+from datetime import datetime
+from typing import TYPE_CHECKING
+
+from sqlalchemy import DateTime, UniqueConstraint
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import BaseModel
+
+if TYPE_CHECKING:
+    from app.models.user_settings import UserSettings
+    from app.models.votuna_members import VotunaPlaylistMember
+    from app.models.votuna_playlist import VotunaPlaylist
+    from app.models.votuna_track_additions import VotunaTrackAddition
+    from app.models.votuna_track_recommendation_declines import VotunaTrackRecommendationDecline
+    from app.models.votuna_votes import VotunaTrackVote
 
 
 class User(BaseModel):
@@ -12,49 +23,43 @@ class User(BaseModel):
     __tablename__ = "users"
     __table_args__ = (UniqueConstraint("auth_provider", "provider_user_id", name="uq_users_provider_user_id"),)
 
-    auth_provider = Column(String, index=True, nullable=False)
-    provider_user_id = Column(String, index=True, nullable=False)
-    email = Column(String, index=True, nullable=True)
-    first_name = Column(String, nullable=True)
-    last_name = Column(String, nullable=True)
-    display_name = Column(String, nullable=True)
-    avatar_url = Column(String, nullable=True)
-    permalink_url = Column(String, nullable=True)
+    auth_provider: Mapped[str] = mapped_column(index=True, nullable=False)
+    provider_user_id: Mapped[str] = mapped_column(index=True, nullable=False)
+    email: Mapped[str | None]
+    first_name: Mapped[str | None]
+    last_name: Mapped[str | None]
+    display_name: Mapped[str | None]
+    avatar_url: Mapped[str | None]
+    permalink_url: Mapped[str | None]
 
-    access_token = Column(String, nullable=True)
-    refresh_token = Column(String, nullable=True)
-    token_expires_at = Column(DateTime(timezone=True), nullable=True)
-    last_login_at = Column(DateTime(timezone=True), nullable=True)
+    access_token: Mapped[str | None]
+    refresh_token: Mapped[str | None]
+    token_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
-    is_active = Column(Boolean, default=True, nullable=False)
+    is_active: Mapped[bool] = mapped_column(default=True, nullable=False)
 
-    settings = relationship(
-        "UserSettings",
+    settings: Mapped["UserSettings"] = relationship(
         back_populates="user",
         uselist=False,
         cascade="all, delete-orphan",
     )
-    votuna_playlists = relationship(
-        "VotunaPlaylist",
+    votuna_playlists: Mapped[list["VotunaPlaylist"]] = relationship(
         back_populates="owner",
         cascade="all, delete-orphan",
     )
-    votuna_memberships = relationship(
-        "VotunaPlaylistMember",
+    votuna_memberships: Mapped[list["VotunaPlaylistMember"]] = relationship(
         back_populates="user",
         cascade="all, delete-orphan",
     )
-    votuna_votes = relationship(
-        "VotunaTrackVote",
+    votuna_votes: Mapped[list["VotunaTrackVote"]] = relationship(
         back_populates="user",
         cascade="all, delete-orphan",
     )
-    votuna_track_additions = relationship(
-        "VotunaTrackAddition",
+    votuna_track_additions: Mapped[list["VotunaTrackAddition"]] = relationship(
         back_populates="added_by_user",
     )
-    votuna_recommendation_declines = relationship(
-        "VotunaTrackRecommendationDecline",
+    votuna_recommendation_declines: Mapped[list["VotunaTrackRecommendationDecline"]] = relationship(
         back_populates="user",
         cascade="all, delete-orphan",
     )

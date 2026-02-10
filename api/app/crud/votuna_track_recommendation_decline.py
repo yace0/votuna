@@ -7,9 +7,14 @@ from sqlalchemy.orm import Session
 
 from app.crud.base import BaseCRUD
 from app.models.votuna_track_recommendation_declines import VotunaTrackRecommendationDecline
+from app.schemas import VotunaTrackRecommendationDeclineCreate, VotunaTrackRecommendationDeclineUpdate
 
 
-class VotunaTrackRecommendationDeclineCRUD(BaseCRUD[VotunaTrackRecommendationDecline, dict, dict]):
+class VotunaTrackRecommendationDeclineCRUD(
+    BaseCRUD[
+        VotunaTrackRecommendationDecline, VotunaTrackRecommendationDeclineCreate, VotunaTrackRecommendationDeclineUpdate
+    ]
+):
     def list_declined_track_ids(
         self,
         db: Session,

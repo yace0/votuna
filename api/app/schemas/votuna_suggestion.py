@@ -26,12 +26,33 @@ class VotunaTrackSuggestionCreate(BaseModel):
     allow_resuggest: bool = False
 
 
+class VotunaTrackSuggestionUpdate(BaseModel):
+    playlist_id: int | None = None
+    provider_track_id: str | None = None
+    track_title: str | None = None
+    track_artist: str | None = None
+    track_artwork_url: str | None = None
+    track_url: str | None = None
+    suggested_by_user_id: int | None = None
+    status: SuggestionStatus | None = None
+    resolved_at: datetime | None = None
+    resolved_by_user_id: int | None = None
+    resolution_reason: SuggestionResolutionReason | None = None
+
+
 class VotunaTrackReactionUpdate(BaseModel):
     reaction: SuggestionReaction | None = None
 
 
 class VotunaTrackRecommendationDeclineCreate(BaseModel):
     provider_track_id: str
+
+
+class VotunaTrackRecommendationDeclineUpdate(BaseModel):
+    playlist_id: int | None = None
+    user_id: int | None = None
+    provider_track_id: str | None = None
+    declined_at: datetime | None = None
 
 
 class VotunaTrackSuggestionOut(BaseModel):

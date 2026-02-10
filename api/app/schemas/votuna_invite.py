@@ -21,6 +21,10 @@ class VotunaPlaylistInviteCreateUser(BaseModel):
 VotunaPlaylistInviteCreate = VotunaPlaylistInviteCreateLink | VotunaPlaylistInviteCreateUser
 
 
+class VotunaPlaylistInviteUpdate(BaseModel):
+    pass
+
+
 class VotunaInviteCandidateOut(BaseModel):
     source: Literal["registered", "provider"]
     provider_user_id: str

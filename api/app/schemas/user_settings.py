@@ -11,6 +11,10 @@ class UserSettingsBase(BaseModel):
     receive_emails: bool = True
 
 
+class UserSettingsCreate(UserSettingsBase):
+    pass
+
+
 class UserSettingsUpdate(BaseModel):
     theme: Literal["system", "light", "dark"] | None = None
     receive_emails: bool | None = None

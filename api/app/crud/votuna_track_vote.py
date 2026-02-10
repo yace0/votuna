@@ -5,9 +5,10 @@ from sqlalchemy.orm import Session
 from app.crud.base import BaseCRUD
 from app.models.user import User
 from app.models.votuna_votes import VotunaTrackVote
+from app.schemas import VotunaTrackSuggestionCreate, VotunaTrackSuggestionUpdate
 
 
-class VotunaTrackVoteCRUD(BaseCRUD[VotunaTrackVote, dict, dict]):
+class VotunaTrackVoteCRUD(BaseCRUD[VotunaTrackVote, VotunaTrackSuggestionCreate, VotunaTrackSuggestionUpdate]):
     def get_vote(self, db: Session, suggestion_id: int, user_id: int) -> VotunaTrackVote | None:
         """Return an existing reaction row for user/suggestion."""
         return (

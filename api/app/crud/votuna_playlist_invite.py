@@ -7,9 +7,10 @@ from sqlalchemy.orm import Session
 
 from app.crud.base import BaseCRUD
 from app.models.votuna_invites import VotunaPlaylistInvite
+from app.schemas import VotunaPlaylistInviteCreate, VotunaPlaylistInviteUpdate
 
 
-class VotunaPlaylistInviteCRUD(BaseCRUD[VotunaPlaylistInvite, dict, dict]):
+class VotunaPlaylistInviteCRUD(BaseCRUD[VotunaPlaylistInvite, VotunaPlaylistInviteCreate, VotunaPlaylistInviteUpdate]):
     def get_by_token(self, db: Session, token: str) -> Optional[VotunaPlaylistInvite]:
         """Return the invite row by token."""
         return db.query(VotunaPlaylistInvite).filter(VotunaPlaylistInvite.token == token).first()

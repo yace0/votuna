@@ -5,9 +5,12 @@ from sqlalchemy.orm import Session
 
 from app.crud.base import BaseCRUD
 from app.models.votuna_suggestions import VotunaTrackSuggestion
+from app.schemas import VotunaTrackSuggestionCreate, VotunaTrackSuggestionUpdate
 
 
-class VotunaTrackSuggestionCRUD(BaseCRUD[VotunaTrackSuggestion, dict, dict]):
+class VotunaTrackSuggestionCRUD(
+    BaseCRUD[VotunaTrackSuggestion, VotunaTrackSuggestionCreate, VotunaTrackSuggestionUpdate]
+):
     def get_pending_by_track(
         self,
         db: Session,

@@ -1,9 +1,14 @@
 """Votuna playlist settings model"""
 
-from sqlalchemy import Column, Integer, String, ForeignKey
-from sqlalchemy.orm import relationship
+from typing import TYPE_CHECKING
+
+from sqlalchemy import ForeignKey
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import BaseModel
+
+if TYPE_CHECKING:
+    from app.models.votuna_playlist import VotunaPlaylist
 
 
 class VotunaPlaylistSettings(BaseModel):
@@ -11,8 +16,10 @@ class VotunaPlaylistSettings(BaseModel):
 
     __tablename__ = "votuna_playlist_settings"
 
-    playlist_id = Column(Integer, ForeignKey("votuna_playlists.id", ondelete="CASCADE"), unique=True, nullable=False)
-    required_vote_percent = Column(Integer, default=60, nullable=False)
-    tie_break_mode = Column(String, default="add", nullable=False)
+    playlist_id: Mapped[int] = mapped_column(
+        ForeignKey("votuna_playlists.id", ondelete="CASCADE"), unique=True, nullable=False
+    )
+    required_vote_percent: Mapped[int] = mapped_column(default=60, nullable=False)
+    tie_break_mode: Mapped[str] = mapped_column(default="add", nullable=False)
 
-    playlist = relationship("VotunaPlaylist", back_populates="settings")
+    playlist: Mapped["VotunaPlaylist"] = relationship(back_populates="settings")

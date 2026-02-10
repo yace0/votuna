@@ -5,14 +5,18 @@ from pydantic import BaseModel, ConfigDict
 
 
 class UserBase(BaseModel):
-    auth_provider: str | None = None
-    provider_user_id: str | None = None
+    auth_provider: str
+    provider_user_id: str
     email: str | None = None
     first_name: str | None = None
     last_name: str | None = None
     display_name: str | None = None
     avatar_url: str | None = None
     permalink_url: str | None = None
+
+
+class UserCreate(UserBase):
+    pass
 
 
 class UserUpdate(BaseModel):

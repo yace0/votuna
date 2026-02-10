@@ -1,9 +1,14 @@
 """User settings model"""
 
-from sqlalchemy import Column, Integer, Boolean, String, ForeignKey
-from sqlalchemy.orm import relationship
+from typing import TYPE_CHECKING
+
+from sqlalchemy import ForeignKey
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import BaseModel
+
+if TYPE_CHECKING:
+    from app.models.user import User
 
 
 class UserSettings(BaseModel):
@@ -11,8 +16,8 @@ class UserSettings(BaseModel):
 
     __tablename__ = "user_settings"
 
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), unique=True, nullable=False)
-    theme = Column(String, default="system", nullable=False)
-    receive_emails = Column(Boolean, default=True, nullable=False)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), unique=True, nullable=False)
+    theme: Mapped[str] = mapped_column(default="system", nullable=False)
+    receive_emails: Mapped[bool] = mapped_column(default=True, nullable=False)
 
-    user = relationship("User", back_populates="settings")
+    user: Mapped["User"] = relationship(back_populates="settings")

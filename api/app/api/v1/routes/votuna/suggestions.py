@@ -2,6 +2,7 @@
 
 from datetime import datetime, timezone
 import hashlib
+from typing import cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session
@@ -13,6 +14,8 @@ from app.models.votuna_playlist import VotunaPlaylist
 from app.models.votuna_suggestions import VotunaTrackSuggestion
 from app.schemas.votuna_playlist import ProviderTrackOut
 from app.schemas.votuna_suggestion import (
+    SuggestionResolutionReason,
+    SuggestionStatus,
     VotunaTrackRecommendationDeclineCreate,
     VotunaTrackReactionUpdate,
     VotunaTrackSuggestionCreate,
@@ -44,6 +47,16 @@ PERSONAL_SUGGESTIONS_ERROR_CODE = "PERSONAL_PLAYLIST_SUGGESTIONS_DISABLED"
 RECOMMENDATION_SEED_LIMIT = 8
 RECOMMENDATION_RELATED_LIMIT_PER_SEED = 25
 RECOMMENDATION_MAX_TRACKS_PER_ARTIST = 2
+VALID_SUGGESTION_STATUSES = {"pending", "accepted", "rejected", "canceled"}
+VALID_SUGGESTION_RESOLUTION_REASONS = {
+    "threshold_met",
+    "threshold_not_met",
+    "tie_add",
+    "tie_reject",
+    "force_add",
+    "canceled_by_suggester",
+    "canceled_by_owner",
+}
 
 
 def _display_name(user: User) -> str:
@@ -102,6 +115,20 @@ def _serialize_provider_track(track: ProviderTrack) -> ProviderTrackOut:
     )
 
 
+def _coerce_suggestion_status(value: str) -> SuggestionStatus:
+    if value in VALID_SUGGESTION_STATUSES:
+        return cast(SuggestionStatus, value)
+    return "pending"
+
+
+def _coerce_suggestion_resolution_reason(value: str | None) -> SuggestionResolutionReason | None:
+    if value is None:
+        return None
+    if value in VALID_SUGGESTION_RESOLUTION_REASONS:
+        return cast(SuggestionResolutionReason, value)
+    return None
+
+
 def _serialize_suggestion(
     db: Session,
     playlist: VotunaPlaylist,
@@ -135,8 +162,8 @@ def _serialize_suggestion(
         track_artwork_url=suggestion.track_artwork_url,
         track_url=suggestion.track_url,
         suggested_by_user_id=suggestion.suggested_by_user_id,
-        status=suggestion.status,
-        resolution_reason=suggestion.resolution_reason,
+        status=_coerce_suggestion_status(suggestion.status),
+        resolution_reason=_coerce_suggestion_resolution_reason(suggestion.resolution_reason),
         resolved_at=suggestion.resolved_at,
         upvote_count=len(upvoter_display_names),
         downvote_count=len(downvoter_display_names),

@@ -6,9 +6,10 @@ from sqlalchemy import or_
 
 from app.crud.base import BaseCRUD
 from app.models.votuna_playlist import VotunaPlaylist
+from app.schemas import VotunaPlaylistSettingsCreate, VotunaPlaylistSettingsUpdate
 
 
-class VotunaPlaylistCRUD(BaseCRUD[VotunaPlaylist, dict, dict]):
+class VotunaPlaylistCRUD(BaseCRUD[VotunaPlaylist, VotunaPlaylistSettingsCreate, VotunaPlaylistSettingsUpdate]):
     def get_by_provider_playlist_id(
         self,
         db: Session,

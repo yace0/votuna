@@ -12,6 +12,10 @@ class VotunaPlaylistSettingsBase(BaseModel):
     tie_break_mode: TieBreakMode = "add"
 
 
+class VotunaPlaylistSettingsCreate(VotunaPlaylistSettingsBase):
+    pass
+
+
 class VotunaPlaylistSettingsUpdate(BaseModel):
     required_vote_percent: int | None = Field(default=None, ge=1, le=100)
     tie_break_mode: TieBreakMode | None = None
