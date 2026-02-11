@@ -238,6 +238,7 @@ class SoundcloudProvider(MusicProviderClient):
             title=payload.get("title") or "Untitled",
             description=payload.get("description"),
             image_url=payload.get("artwork_url") or user.get("avatar_url"),
+            url=payload.get("permalink_url"),
             track_count=payload.get("track_count"),
             is_public=is_public,
         )
@@ -427,6 +428,7 @@ class SoundcloudProvider(MusicProviderClient):
             title=mapped.title or title,
             description=mapped.description if mapped.description is not None else description,
             image_url=mapped.image_url,
+            url=mapped.url,
             track_count=mapped.track_count,
             is_public=mapped.is_public,
         )

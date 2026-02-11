@@ -16,6 +16,7 @@ class ProviderPlaylistOut(BaseModel):
     title: str
     description: str | None = None
     image_url: str | None = None
+    url: str | None = None
     track_count: int | None = None
     is_public: bool | None = None
 
@@ -60,6 +61,7 @@ class VotunaPlaylistCreate(BaseModel):
 class VotunaPlaylistOut(BaseModel):
     id: int
     owner_user_id: int
+    owner_profile_url: str | None = None
     provider: MusicProvider
     provider_playlist_id: str
     title: str

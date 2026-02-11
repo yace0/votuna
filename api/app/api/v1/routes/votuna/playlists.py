@@ -48,13 +48,31 @@ def _display_name(user: User) -> str:
     return user.display_name or user.first_name or user.email or user.provider_user_id or f"User {user.id}"
 
 
+def _to_votuna_playlist_out(playlist, owner_profile_url: str | None = None) -> VotunaPlaylistOut:
+    payload = VotunaPlaylistOut.model_validate(playlist).model_dump()
+    payload["owner_profile_url"] = owner_profile_url
+    return VotunaPlaylistOut(**payload)
+
+
 @router.get("/playlists", response_model=list[VotunaPlaylistOut])
 def list_votuna_playlists(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """List Votuna playlists for the current user."""
-    return votuna_playlist_crud.list_for_user(db, current_user.id)
+    playlists = list(votuna_playlist_crud.list_for_user(db, current_user.id))
+    owner_ids = {playlist.owner_user_id for playlist in playlists}
+    owner_profile_by_id: dict[int, str | None] = {}
+    if owner_ids:
+        owner_rows = db.query(User).filter(User.id.in_(owner_ids)).all()
+        owner_profile_by_id = {owner.id: owner.permalink_url for owner in owner_rows}
+    return [
+        _to_votuna_playlist_out(
+            playlist,
+            owner_profile_url=owner_profile_by_id.get(playlist.owner_user_id),
+        )
+        for playlist in playlists
+    ]
 
 
 @router.post("/playlists", response_model=VotunaPlaylistDetail)
@@ -128,7 +146,7 @@ async def create_votuna_playlist(
     )
 
     return VotunaPlaylistDetail(
-        **VotunaPlaylistOut.model_validate(playlist).model_dump(),
+        **_to_votuna_playlist_out(playlist, owner_profile_url=current_user.permalink_url).model_dump(),
         settings=VotunaPlaylistSettingsOut.model_validate(settings),
     )
 
@@ -143,8 +161,9 @@ def get_votuna_playlist(
     playlist = get_playlist_or_404(db, playlist_id)
     require_member(db, playlist_id, current_user.id)
     settings = votuna_playlist_settings_crud.get_by_playlist_id(db, playlist_id)
+    owner = db.query(User).filter(User.id == playlist.owner_user_id).first()
     return VotunaPlaylistDetail(
-        **VotunaPlaylistOut.model_validate(playlist).model_dump(),
+        **_to_votuna_playlist_out(playlist, owner_profile_url=owner.permalink_url if owner else None).model_dump(),
         settings=VotunaPlaylistSettingsOut.model_validate(settings) if settings else None,
     )
 
@@ -199,7 +218,8 @@ async def sync_votuna_playlist(
             "last_synced_at": datetime.now(timezone.utc),
         },
     )
-    return updated
+    owner = db.query(User).filter(User.id == updated.owner_user_id).first()
+    return _to_votuna_playlist_out(updated, owner_profile_url=owner.permalink_url if owner else None)
 
 
 @router.post("/playlists/{playlist_id}/tracks", response_model=ProviderTrackOut)

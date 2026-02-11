@@ -23,6 +23,7 @@ class ProviderPlaylist:
     title: str
     description: str | None = None
     image_url: str | None = None
+    url: str | None = None
     track_count: int | None = None
     is_public: bool | None = None
 

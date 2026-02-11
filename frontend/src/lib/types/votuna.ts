@@ -15,6 +15,7 @@ export type PlaylistType = 'personal' | 'collaborative'
 export type VotunaPlaylist = {
   id: number
   owner_user_id: number
+  owner_profile_url?: string | null
   title: string
   description?: string | null
   image_url?: string | null

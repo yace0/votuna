@@ -36,6 +36,7 @@ def _to_provider_playlist_out(playlist) -> ProviderPlaylistOut:
         title=playlist.title,
         description=playlist.description,
         image_url=playlist.image_url,
+        url=playlist.url,
         track_count=playlist.track_count,
         is_public=playlist.is_public,
     )

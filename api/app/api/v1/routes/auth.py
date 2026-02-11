@@ -103,7 +103,8 @@ async def login_provider(
         sso: SSOProtocol = get_sso(provider)
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc))
-    response = await sso.get_login_redirect()
+    async with sso:
+        response = await sso.get_login_redirect()
     if invite_token:
         response.set_cookie(
             PENDING_INVITE_COOKIE,
@@ -137,6 +138,17 @@ async def callback_provider(
     db: Session = Depends(get_db),
 ) -> Response:
     """Handle the OAuth callback, issue a session token, and redirect."""
+    provider_error = request.query_params.get("error")
+    provider_error_description = request.query_params.get("error_description")
+    if provider_error:
+        message = provider_error_description or provider_error
+        logger.warning(
+            "%s callback returned provider error: %s",
+            provider.value,
+            message,
+        )
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=message)
+
     try:
         sso: SSOProtocol = get_sso(provider)
     except ValueError as exc:
@@ -149,6 +161,7 @@ async def callback_provider(
             refresh_token = getattr(sso, "refresh_token", None)
             expires_at = _extract_sso_expires_at(sso)
     except Exception as exc:
+        logger.exception("%s callback verification failed", provider.value)
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc))
     provider_user_id = get_openid_value(openid, *provider_config.id_keys)
     if not provider_user_id:

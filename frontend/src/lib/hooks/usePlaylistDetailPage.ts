@@ -163,6 +163,7 @@ export function usePlaylistDetailPage(
   })
 
   return {
+    currentUser,
     playlist,
     isPlaylistLoading: playlistQuery.isLoading,
     suggestions,

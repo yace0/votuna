@@ -15,6 +15,7 @@ import PageShell from '@/components/ui/PageShell'
 import SectionEyebrow from '@/components/ui/SectionEyebrow'
 import SurfaceCard from '@/components/ui/SurfaceCard'
 import { usePlaylistDetailPage } from '@/lib/hooks/usePlaylistDetailPage'
+import { getProviderPlaylistUrl } from '@/lib/providerLinks'
 
 const TAB_KEYS = ['playlist', 'manage', 'settings'] as const
 type PlaylistTabKey = (typeof TAB_KEYS)[number]
@@ -60,6 +61,20 @@ export default function PlaylistDetailPage() {
 
   const activeTabIndex = TAB_KEYS.indexOf(activeTab)
   const state = usePlaylistDetailPage(playlistId, activeTab)
+  const ownerProfilePermalinkUrl =
+    state.playlist?.owner_profile_url ??
+    state.members.find((member) => member.user_id === state.playlist?.owner_user_id)?.profile_url ??
+    (state.currentUser?.id && state.playlist?.owner_user_id === state.currentUser.id
+      ? state.currentUser.permalink_url ?? null
+      : null)
+  const providerPlaylistUrl = state.playlist
+    ? getProviderPlaylistUrl({
+        provider: state.playlist.provider,
+        providerPlaylistId: state.playlist.provider_playlist_id,
+        playlistTitle: state.playlist.title,
+        profilePermalinkUrl: ownerProfilePermalinkUrl,
+      })
+    : null
 
   const buildTabHref = (tab: PlaylistTabKey) => {
     const nextParams = new URLSearchParams(searchParams.toString())
@@ -114,9 +129,20 @@ export default function PlaylistDetailPage() {
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <SectionEyebrow>Playlist</SectionEyebrow>
-            <h1 className="mt-2 text-3xl font-semibold text-[rgb(var(--votuna-ink))]">
-              {state.playlist.title}
-            </h1>
+            {providerPlaylistUrl ? (
+              <a
+                href={providerPlaylistUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-2 block text-3xl font-semibold text-[rgb(var(--votuna-ink))] hover:underline"
+              >
+                {state.playlist.title}
+              </a>
+            ) : (
+              <h1 className="mt-2 text-3xl font-semibold text-[rgb(var(--votuna-ink))]">
+                {state.playlist.title}
+              </h1>
+            )}
             {state.playlist.description ? (
               <p className="mt-2 text-sm text-[color:rgb(var(--votuna-ink)/0.7)]">
                 {state.playlist.description}

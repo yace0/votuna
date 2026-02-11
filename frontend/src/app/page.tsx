@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { useMemo, useState } from 'react'
 import { queryKeys } from '@/lib/constants/queryKeys'
 import { useCurrentUser } from '@/lib/hooks/useCurrentUser'
+import { getProviderPlaylistUrl } from '@/lib/providerLinks'
 import type { PendingInvite, VotunaPlaylist } from '@/lib/types/votuna'
 import ClearableTextInput from '@/components/ui/ClearableTextInput'
 import { apiFetch, apiJson, ApiError } from '../lib/api'
@@ -16,6 +17,7 @@ type ProviderPlaylist = {
   title: string
   description?: string | null
   image_url?: string | null
+  url?: string | null
   track_count?: number | null
   is_public?: boolean | null
 }
@@ -539,27 +541,48 @@ export default function Home() {
               </Card>
             ) : (
               <div className="grid gap-4">
-                {collaboratorVotunaPlaylists.map((playlist) => (
-                  <Card
-                    key={playlist.id}
-                    className="rounded-3xl border border-[color:rgb(var(--votuna-ink)/0.08)] bg-[rgba(var(--votuna-paper),0.9)] p-5 shadow-xl shadow-black/5"
-                  >
-                    <div className="flex flex-wrap items-center justify-between gap-4">
-                      <div>
-                        <p className="text-lg font-semibold text-[rgb(var(--votuna-ink))]">{playlist.title}</p>
-                        <p className="mt-1 text-sm text-[color:rgb(var(--votuna-ink)/0.6)]">
-                          Shared via {playlist.provider}
-                        </p>
+                {collaboratorVotunaPlaylists.map((playlist) => {
+                  const providerPlaylistUrl = getProviderPlaylistUrl({
+                    provider: playlist.provider,
+                    providerPlaylistId: playlist.provider_playlist_id,
+                    playlistTitle: playlist.title,
+                    profilePermalinkUrl: playlist.owner_profile_url,
+                  })
+                  return (
+                    <Card
+                      key={playlist.id}
+                      className="rounded-3xl border border-[color:rgb(var(--votuna-ink)/0.08)] bg-[rgba(var(--votuna-paper),0.9)] p-5 shadow-xl shadow-black/5"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-4">
+                        <div>
+                          {providerPlaylistUrl ? (
+                            <a
+                              href={providerPlaylistUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-lg font-semibold text-[rgb(var(--votuna-ink))] hover:underline"
+                            >
+                              {playlist.title}
+                            </a>
+                          ) : (
+                            <p className="text-lg font-semibold text-[rgb(var(--votuna-ink))]">
+                              {playlist.title}
+                            </p>
+                          )}
+                          <p className="mt-1 text-sm text-[color:rgb(var(--votuna-ink)/0.6)]">
+                            Shared via {playlist.provider}
+                          </p>
+                        </div>
+                        <Link
+                          href={`/playlists/${playlist.id}`}
+                          className="rounded-full border border-[color:rgb(var(--votuna-ink)/0.15)] px-4 py-2 text-xs font-semibold text-[rgb(var(--votuna-ink))] hover:bg-[rgba(var(--votuna-paper),0.7)]"
+                        >
+                          Open
+                        </Link>
                       </div>
-                      <Link
-                        href={`/playlists/${playlist.id}`}
-                        className="rounded-full border border-[color:rgb(var(--votuna-ink)/0.15)] px-4 py-2 text-xs font-semibold text-[rgb(var(--votuna-ink))] hover:bg-[rgba(var(--votuna-paper),0.7)]"
-                      >
-                        Open
-                      </Link>
-                    </div>
-                  </Card>
-                ))}
+                    </Card>
+                  )
+                })}
                 {pendingInvites.map((invite) => {
                   const action = pendingInviteActions[invite.invite_id]
                   const isAccepting = action === 'accept'
@@ -625,6 +648,13 @@ export default function Home() {
               {providerPlaylists.map((playlist) => {
                 const key = `${playlist.provider}:${playlist.provider_playlist_id}`
                 const votuna = votunaMap.get(key)
+                const providerPlaylistUrl = getProviderPlaylistUrl({
+                  provider: playlist.provider,
+                  providerPlaylistId: playlist.provider_playlist_id,
+                  playlistTitle: playlist.title,
+                  profilePermalinkUrl: user.permalink_url,
+                  providerPlaylistUrl: playlist.url,
+                })
                 return (
                   <Card
                     key={playlist.provider_playlist_id}
@@ -632,9 +662,20 @@ export default function Home() {
                   >
                     <div className="flex flex-wrap items-center justify-between gap-4">
                       <div>
-                        <p className="text-lg font-semibold text-[rgb(var(--votuna-ink))]">
-                          {playlist.title}
-                        </p>
+                        {providerPlaylistUrl ? (
+                          <a
+                            href={providerPlaylistUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-lg font-semibold text-[rgb(var(--votuna-ink))] hover:underline"
+                          >
+                            {playlist.title}
+                          </a>
+                        ) : (
+                          <p className="text-lg font-semibold text-[rgb(var(--votuna-ink))]">
+                            {playlist.title}
+                          </p>
+                        )}
                         <p className="mt-1 text-sm text-[color:rgb(var(--votuna-ink)/0.6)]">
                           {playlist.track_count ?? 0} tracks
                           {playlist.is_public === undefined || playlist.is_public === null
