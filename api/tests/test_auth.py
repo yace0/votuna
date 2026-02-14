@@ -65,6 +65,15 @@ def test_login_redirect(client, monkeypatch):
     assert response.headers["location"] == "https://example.com/login"
 
 
+def test_login_redirect_spotify(client, monkeypatch):
+    import app.api.v1.routes.auth as auth_routes
+
+    monkeypatch.setattr(auth_routes, "get_sso", lambda provider: DummySSO())
+    response = client.get("/api/v1/auth/login/spotify", follow_redirects=False)
+    assert response.status_code in {302, 307}
+    assert response.headers["location"] == "https://example.com/login"
+
+
 def test_login_redirect_with_invite_context_sets_cookies(client, monkeypatch):
     import app.api.v1.routes.auth as auth_routes
 
@@ -89,6 +98,19 @@ def test_callback_creates_user_and_sets_cookie(client, db_session, monkeypatch):
     assert settings.AUTH_COOKIE_NAME in response.headers.get("set-cookie", "")
 
     user = user_crud.get_by_provider_id(db_session, "soundcloud", "sc-user")
+    assert user is not None
+    assert user.email == "user@example.com"
+
+
+def test_callback_creates_spotify_user_and_sets_cookie(client, db_session, monkeypatch):
+    import app.api.v1.routes.auth as auth_routes
+
+    monkeypatch.setattr(auth_routes, "get_sso", lambda provider: DummySSO())
+    response = client.get("/api/v1/auth/callback/spotify", follow_redirects=False)
+    assert response.status_code in {302, 307}
+    assert settings.AUTH_COOKIE_NAME in response.headers.get("set-cookie", "")
+
+    user = user_crud.get_by_provider_id(db_session, "spotify", "sc-user")
     assert user is not None
     assert user.email == "user@example.com"
 

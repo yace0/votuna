@@ -15,7 +15,14 @@ const buildSoundcloudEmbedUrl = (
   return `https://w.soundcloud.com/player/?url=${encodeURIComponent(trackUrl)}&auto_play=${autoPlay ? 'true' : 'false'}&hide_related=true&show_comments=true&show_user=true&show_reposts=false&visual=false`
 }
 
+const isSoundcloudTrackUrl = (trackUrl: string | null | undefined) => {
+  const value = (trackUrl || '').trim().toLowerCase()
+  return value.includes('soundcloud.com/')
+}
+
 export default function NowPlayingDock({ track, onClose }: NowPlayingDockProps) {
+  const shouldShowSoundcloudEmbed = isSoundcloudTrackUrl(track.url)
+
   return (
     <div className="fixed bottom-4 left-1/2 z-40 w-full max-w-6xl -translate-x-1/2 px-6">
       <div className="rounded-2xl border border-[color:rgb(var(--votuna-ink)/0.12)] bg-[rgba(var(--votuna-paper),0.98)] p-3 shadow-2xl shadow-black/25 backdrop-blur-sm">
@@ -52,13 +59,15 @@ export default function NowPlayingDock({ track, onClose }: NowPlayingDockProps) 
             </button>
           </div>
         </div>
-        <iframe
-          title={`Now playing ${track.title}`}
-          src={buildSoundcloudEmbedUrl(track.url, true)}
-          className="mt-3 h-[10rem] w-full rounded-xl border-0"
-          loading="lazy"
-          allow="autoplay"
-        />
+        {shouldShowSoundcloudEmbed ? (
+          <iframe
+            title={`Now playing ${track.title}`}
+            src={buildSoundcloudEmbedUrl(track.url, true)}
+            className="mt-3 h-[10rem] w-full rounded-xl border-0"
+            loading="lazy"
+            allow="autoplay"
+          />
+        ) : null}
       </div>
     </div>
   )

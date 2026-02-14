@@ -10,7 +10,7 @@ FastAPI backend for Votuna's collaborative playlist workflows.
 - Suggestions and voting with collaborator/member support
 - Playlist management transfer endpoints (import/export with preview and execute)
 
-Runtime provider client support is currently **SoundCloud** (`get_music_provider`), even though API schemas include additional provider enums for forward compatibility.
+Runtime provider client support currently includes **Spotify** and **SoundCloud** (`get_music_provider`), while API schemas also include additional provider enums for forward compatibility.
 
 ## Playlist Management (Implemented)
 
@@ -72,15 +72,14 @@ Required values:
 
 - `DATABASE_URL`
 - `AUTH_SECRET_KEY`
-- `SOUNDCLOUD_CLIENT_ID`
-- `SOUNDCLOUD_CLIENT_SECRET`
-- `SOUNDCLOUD_REDIRECT_URI`
-
-Optional provider auth values (not used by playlist provider client yet):
-
-- `SPOTIFY_CLIENT_ID`
-- `SPOTIFY_CLIENT_SECRET`
-- `SPOTIFY_REDIRECT_URI`
+- One provider OAuth set (or both):
+  - `SPOTIFY_CLIENT_ID`
+  - `SPOTIFY_CLIENT_SECRET`
+  - `SPOTIFY_REDIRECT_URI`
+  - Optional overrides: `SPOTIFY_API_BASE_URL`, `SPOTIFY_TOKEN_URL`
+  - `SOUNDCLOUD_CLIENT_ID`
+  - `SOUNDCLOUD_CLIENT_SECRET`
+  - `SOUNDCLOUD_REDIRECT_URI`
 
 ### 3. Run migrations
 

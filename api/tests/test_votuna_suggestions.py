@@ -143,6 +143,35 @@ def test_search_tracks_for_suggestions_provider_auth_member_returns_409(
     assert response.json()["detail"] == "Playlist owner must reconnect SoundCloud"
 
 
+def test_search_tracks_for_suggestions_provider_auth_member_uses_spotify_message(
+    other_auth_client,
+    db_session,
+    votuna_playlist,
+    other_user,
+    provider_stub,
+    monkeypatch,
+):
+    votuna_playlist.provider = "spotify"
+    db_session.add(votuna_playlist)
+    db_session.commit()
+
+    votuna_playlist_member_crud.create(
+        db_session,
+        {"playlist_id": votuna_playlist.id, "user_id": other_user.id, "role": "member"},
+    )
+
+    async def _raise_auth_error(self, query: str, limit: int = 10):
+        raise ProviderAuthError("expired")
+
+    monkeypatch.setattr(provider_stub, "search_tracks", _raise_auth_error)
+    response = other_auth_client.get(
+        f"/api/v1/votuna/playlists/{votuna_playlist.id}/tracks/search",
+        params={"q": "house"},
+    )
+    assert response.status_code == 409
+    assert response.json()["detail"] == "Playlist owner must reconnect Spotify"
+
+
 def test_search_tracks_for_suggestions_provider_api_error_returns_502(
     auth_client,
     votuna_playlist,
@@ -730,6 +759,24 @@ def test_recommendations_default_limit_and_filters(
     assert "track-2" not in ids  # already in playlist
     assert "track-related-3" not in ids  # already pending
     assert "track-related-4" not in ids  # declined by current user
+
+
+def test_recommendations_for_spotify_return_empty(
+    auth_client,
+    db_session,
+    votuna_playlist,
+    provider_stub,
+):
+    votuna_playlist.provider = "spotify"
+    db_session.add(votuna_playlist)
+    db_session.commit()
+
+    response = auth_client.get(
+        f"/api/v1/votuna/playlists/{votuna_playlist.id}/tracks/recommendations",
+    )
+    assert response.status_code == 200
+    assert response.json() == []
+    assert provider_stub.related_tracks_calls == []
 
 
 def test_recommendation_decline_is_idempotent(auth_client, db_session, votuna_playlist, user):

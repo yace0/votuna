@@ -18,6 +18,8 @@ class Settings(BaseSettings):
     SPOTIFY_CLIENT_ID: str = ""
     SPOTIFY_CLIENT_SECRET: str = ""
     SPOTIFY_REDIRECT_URI: str = ""
+    SPOTIFY_API_BASE_URL: str = "https://api.spotify.com/v1"
+    SPOTIFY_TOKEN_URL: str = "https://accounts.spotify.com/api/token"
     SOUNDCLOUD_CLIENT_ID: str = ""
     SOUNDCLOUD_CLIENT_SECRET: str = ""
     SOUNDCLOUD_REDIRECT_URI: str = ""

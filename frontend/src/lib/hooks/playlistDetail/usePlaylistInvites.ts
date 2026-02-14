@@ -185,7 +185,7 @@ export function usePlaylistInvites({ playlistId, canInvite, queryClient }: UsePl
     if (!trimmed) {
       setHasSearched(true)
       setSearchResults([])
-      setSearchError('Enter a username to search.')
+      setSearchError('Enter a name or user ID to search.')
       return
     }
     searchCandidatesMutation.mutate(trimmed)

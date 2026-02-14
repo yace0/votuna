@@ -232,10 +232,10 @@ export default function CollaboratorsSection({
                 Invite collaborator
               </p>
               <h2 className="mt-2 text-2xl font-semibold text-[rgb(var(--votuna-ink))]">
-                Find a user by username
+                Find a user
               </h2>
               <p className="mt-2 text-sm text-[color:rgb(var(--votuna-ink)/0.7)]">
-                Search by username and select a result to send an invite.
+                Search by name or user ID and select a result to send an invite.
               </p>
             </div>
             <button
@@ -257,7 +257,7 @@ export default function CollaboratorsSection({
             <ClearableTextInput
               value={invites.search.query}
               onValueChange={invites.search.setQuery}
-              placeholder="Search username"
+              placeholder="Search users"
               containerClassName="flex-1"
               className="bg-[rgba(var(--votuna-paper),0.85)] text-[rgb(var(--votuna-ink))]"
               clearAriaLabel="Clear user search"

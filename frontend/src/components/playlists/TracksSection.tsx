@@ -9,6 +9,7 @@ import SurfaceCard from '@/components/ui/SurfaceCard'
 import TrackArtwork from './TrackArtwork'
 
 type TracksSectionProps = {
+  provider: string
   tracks: ProviderTrack[]
   isLoading: boolean
   onPlayTrack: (track: TrackPlayRequest) => void
@@ -17,6 +18,15 @@ type TracksSectionProps = {
   isRemoveTrackPending: boolean
   removingTrackId: string | null
   statusMessage?: string
+}
+
+const getProviderLabel = (provider: string) => {
+  const normalized = provider.trim().toLowerCase()
+  if (normalized === 'spotify') return 'Spotify'
+  if (normalized === 'soundcloud') return 'SoundCloud'
+  if (normalized === 'apple') return 'Apple Music'
+  if (normalized === 'tidal') return 'TIDAL'
+  return 'provider'
 }
 
 const formatAddedDate = (addedAt: string | null | undefined) => {
@@ -33,6 +43,7 @@ const INITIAL_VISIBLE_TRACKS = 80
 const VISIBLE_TRACKS_STEP = 80
 
 export default function TracksSection({
+  provider,
   tracks,
   isLoading,
   onPlayTrack,
@@ -42,6 +53,7 @@ export default function TracksSection({
   removingTrackId,
   statusMessage,
 }: TracksSectionProps) {
+  const providerLabel = getProviderLabel(provider)
   const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE_TRACKS)
 
   useEffect(() => {
@@ -57,7 +69,7 @@ export default function TracksSection({
         <div>
           <SectionEyebrow>Current playlist songs</SectionEyebrow>
           <p className="mt-2 text-sm text-[color:rgb(var(--votuna-ink)/0.7)]">
-            Tracks currently in the SoundCloud playlist.
+            Tracks currently in the {providerLabel} playlist.
           </p>
         </div>
       </div>

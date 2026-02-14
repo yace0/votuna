@@ -60,14 +60,32 @@ def get_owner_client(db: Session, playlist: VotunaPlaylist) -> MusicProviderClie
     return get_provider_client(playlist.provider, owner, db=db)
 
 
-def raise_provider_auth(current_user: User, owner_id: int | None = None) -> None:
+def _provider_display_name(provider: str | None) -> str:
+    normalized = (provider or "").strip().lower()
+    if normalized == "soundcloud":
+        return "SoundCloud"
+    if normalized == "spotify":
+        return "Spotify"
+    if normalized == "apple":
+        return "Apple Music"
+    if normalized == "tidal":
+        return "TIDAL"
+    return "provider"
+
+
+def raise_provider_auth(
+    current_user: User,
+    owner_id: int | None = None,
+    provider: str | None = None,
+) -> None:
     """Raise an auth error, logging out owner or warning members."""
+    provider_name = _provider_display_name(provider)
     if owner_id is None or current_user.id == owner_id:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="SoundCloud authorization expired or invalid",
+            detail=f"{provider_name} authorization expired or invalid",
         )
     raise HTTPException(
         status_code=status.HTTP_409_CONFLICT,
-        detail="Playlist owner must reconnect SoundCloud",
+        detail=f"Playlist owner must reconnect {provider_name}",
     )

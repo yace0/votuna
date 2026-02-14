@@ -97,7 +97,7 @@ async def create_votuna_playlist(
         try:
             provider_playlist = await client.get_playlist(payload.provider_playlist_id)
         except ProviderAuthError:
-            raise_provider_auth(current_user)
+            raise_provider_auth(current_user, provider=payload.provider)
         except ProviderAPIError as exc:
             raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
     else:
@@ -108,7 +108,7 @@ async def create_votuna_playlist(
                 is_public=payload.is_public,
             )
         except ProviderAuthError:
-            raise_provider_auth(current_user)
+            raise_provider_auth(current_user, provider=payload.provider)
         except ProviderAPIError as exc:
             raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
 
@@ -205,7 +205,7 @@ async def sync_votuna_playlist(
     try:
         provider_playlist = await client.get_playlist(playlist.provider_playlist_id)
     except ProviderAuthError:
-        raise_provider_auth(current_user, owner_id=playlist.owner_user_id)
+        raise_provider_auth(current_user, owner_id=playlist.owner_user_id, provider=playlist.provider)
     except ProviderAPIError as exc:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
     updated = votuna_playlist_crud.update(
@@ -257,7 +257,7 @@ async def add_votuna_track(
         try:
             resolved_track = await client.resolve_track_url(track_url)
         except ProviderAuthError:
-            raise_provider_auth(current_user, owner_id=playlist.owner_user_id)
+            raise_provider_auth(current_user, owner_id=playlist.owner_user_id, provider=playlist.provider)
         except ProviderAPIError as exc:
             if exc.status_code in {400, 404}:
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
@@ -276,7 +276,7 @@ async def add_votuna_track(
                 detail="Track already exists in playlist",
             )
     except ProviderAuthError:
-        raise_provider_auth(current_user, owner_id=playlist.owner_user_id)
+        raise_provider_auth(current_user, owner_id=playlist.owner_user_id, provider=playlist.provider)
     except ProviderAPIError:
         # If duplicate check fails, continue with add to avoid blocking the owner.
         pass
@@ -286,7 +286,7 @@ async def add_votuna_track(
     try:
         await client.add_tracks(playlist.provider_playlist_id, [provider_track_id])
     except ProviderAuthError:
-        raise_provider_auth(current_user, owner_id=playlist.owner_user_id)
+        raise_provider_auth(current_user, owner_id=playlist.owner_user_id, provider=playlist.provider)
     except ProviderAPIError as exc:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
 
@@ -390,7 +390,7 @@ async def list_votuna_tracks(
     try:
         tracks = await client.list_tracks(playlist.provider_playlist_id)
     except ProviderAuthError:
-        raise_provider_auth(current_user, owner_id=playlist.owner_user_id)
+        raise_provider_auth(current_user, owner_id=playlist.owner_user_id, provider=playlist.provider)
     except ProviderAPIError as exc:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
 
@@ -551,7 +551,7 @@ async def remove_votuna_track(
     try:
         await client.remove_tracks(playlist.provider_playlist_id, [track_id])
     except ProviderAuthError:
-        raise_provider_auth(current_user, owner_id=playlist.owner_user_id)
+        raise_provider_auth(current_user, owner_id=playlist.owner_user_id, provider=playlist.provider)
     except ProviderAPIError as exc:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
     return Response(status_code=status.HTTP_204_NO_CONTENT)

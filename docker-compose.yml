@@ -27,6 +27,7 @@ services:
       DATABASE_URL: postgresql://${DB_USER:-votuna_user}:${DB_PASSWORD:-votuna_password}@postgres:5432/${DB_NAME:-votuna}
       DEBUG: ${DEBUG:-False}
       PROJECT_NAME: ${PROJECT_NAME:-Votuna API}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:8080}
       SQLALCHEMY_ECHO: ${SQLALCHEMY_ECHO:-False}
       SPOTIFY_CLIENT_ID: ${SPOTIFY_CLIENT_ID:-}
       SPOTIFY_CLIENT_SECRET: ${SPOTIFY_CLIENT_SECRET:-}
@@ -62,6 +63,7 @@ services:
       DATABASE_URL: postgresql://${DB_USER:-votuna_user}:${DB_PASSWORD:-votuna_password}@postgres:5432/${DB_NAME:-votuna}
       DEBUG: ${DEBUG:-False}
       PROJECT_NAME: ${PROJECT_NAME:-Votuna API}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:8080}
       SQLALCHEMY_ECHO: ${SQLALCHEMY_ECHO:-False}
       SPOTIFY_CLIENT_ID: ${SPOTIFY_CLIENT_ID:-}
       SPOTIFY_CLIENT_SECRET: ${SPOTIFY_CLIENT_SECRET:-}

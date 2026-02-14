@@ -188,11 +188,12 @@ async def _safe_get_playlist(
     provider_playlist_id: str,
     current_user: User,
     owner_id: int,
+    provider: str,
 ) -> ResolvedProviderPlaylist:
     try:
         provider_playlist = await client.get_playlist(provider_playlist_id)
     except ProviderAuthError:
-        raise_provider_auth(current_user, owner_id=owner_id)
+        raise_provider_auth(current_user, owner_id=owner_id, provider=provider)
         raise AssertionError("unreachable")
     except ProviderAPIError as exc:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
@@ -209,11 +210,12 @@ async def _safe_list_tracks(
     provider_playlist_id: str,
     current_user: User,
     owner_id: int,
+    provider: str,
 ) -> list[ProviderTrack]:
     try:
         tracks = await client.list_tracks(provider_playlist_id)
     except ProviderAuthError:
-        raise_provider_auth(current_user, owner_id=owner_id)
+        raise_provider_auth(current_user, owner_id=owner_id, provider=provider)
         raise AssertionError("unreachable")
     except ProviderAPIError as exc:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
@@ -239,6 +241,7 @@ async def _resolve_playlist_ref(
             provider_playlist_id=ref.provider_playlist_id,
             current_user=current_user,
             owner_id=current_playlist.owner_user_id,
+            provider=current_playlist.provider,
         )
         return ResolvedProviderPlaylist(
             provider=current_playlist.provider,  # type: ignore[arg-type]
@@ -262,6 +265,7 @@ async def _resolve_playlist_ref(
         provider_playlist_id=other_playlist.provider_playlist_id,
         current_user=current_user,
         owner_id=current_playlist.owner_user_id,
+        provider=current_playlist.provider,
     )
     return ResolvedProviderPlaylist(
         provider=other_playlist.provider,  # type: ignore[arg-type]
@@ -360,6 +364,7 @@ async def list_management_source_tracks(
         provider_playlist_id=source.provider_playlist_id,
         current_user=current_user,
         owner_id=current_playlist.owner_user_id,
+        provider=current_playlist.provider,
     )
     needle = _normalize(payload.search or "")
     filtered_tracks = [track for track in tracks if _contains_search(track, needle)]
@@ -397,6 +402,7 @@ async def list_management_facets(
         provider_playlist_id=source.provider_playlist_id,
         current_user=current_user,
         owner_id=current_playlist.owner_user_id,
+        provider=current_playlist.provider,
     )
 
     return ManagementFacetsResponse(
@@ -432,6 +438,7 @@ async def preview_management_transfer(
         provider_playlist_id=source.provider_playlist_id,
         current_user=current_user,
         owner_id=current_playlist.owner_user_id,
+        provider=current_playlist.provider,
     )
     matched_tracks = _dedupe_tracks_by_id(
         _filter_tracks_by_selection(source_tracks, payload.selection_mode, cleaned_values)
@@ -444,6 +451,7 @@ async def preview_management_transfer(
             provider_playlist_id=destination.provider_playlist_id,
             current_user=current_user,
             owner_id=current_playlist.owner_user_id,
+            provider=current_playlist.provider,
         )
         destination_track_ids = {track.provider_track_id for track in destination_tracks if track.provider_track_id}
 
@@ -496,6 +504,7 @@ async def execute_management_transfer(
         provider_playlist_id=source.provider_playlist_id,
         current_user=current_user,
         owner_id=current_playlist.owner_user_id,
+        provider=current_playlist.provider,
     )
     matched_tracks = _dedupe_tracks_by_id(
         _filter_tracks_by_selection(source_tracks, payload.selection_mode, cleaned_values)
@@ -512,7 +521,11 @@ async def execute_management_transfer(
                 is_public=payload.destination_create.is_public,
             )
         except ProviderAuthError:
-            raise_provider_auth(current_user, owner_id=current_playlist.owner_user_id)
+            raise_provider_auth(
+                current_user,
+                owner_id=current_playlist.owner_user_id,
+                provider=current_playlist.provider,
+            )
             raise AssertionError("unreachable")
         except ProviderAPIError as exc:
             raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
@@ -531,6 +544,7 @@ async def execute_management_transfer(
             provider_playlist_id=destination.provider_playlist_id,
             current_user=current_user,
             owner_id=current_playlist.owner_user_id,
+            provider=current_playlist.provider,
         )
         destination_track_ids = {track.provider_track_id for track in destination_tracks if track.provider_track_id}
 
@@ -558,7 +572,11 @@ async def execute_management_transfer(
             successfully_added_track_ids.extend(chunk)
             continue
         except ProviderAuthError:
-            raise_provider_auth(current_user, owner_id=current_playlist.owner_user_id)
+            raise_provider_auth(
+                current_user,
+                owner_id=current_playlist.owner_user_id,
+                provider=current_playlist.provider,
+            )
             raise AssertionError("unreachable")
         except ProviderAPIError:
             # Fall back to per-track retries for best-effort behavior.
@@ -570,7 +588,11 @@ async def execute_management_transfer(
                 added_count += 1
                 successfully_added_track_ids.append(track_id)
             except ProviderAuthError:
-                raise_provider_auth(current_user, owner_id=current_playlist.owner_user_id)
+                raise_provider_auth(
+                    current_user,
+                    owner_id=current_playlist.owner_user_id,
+                    provider=current_playlist.provider,
+                )
                 raise AssertionError("unreachable")
             except ProviderAPIError as exc:
                 failed_items.append(ManagementFailedItem(provider_track_id=track_id, error=str(exc)))

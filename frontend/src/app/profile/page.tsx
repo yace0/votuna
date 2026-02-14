@@ -227,7 +227,7 @@ export default function ProfilePage() {
         <SurfaceCard>
           <h1 className="text-2xl font-semibold text-[rgb(var(--votuna-ink))]">You are not signed in</h1>
           <p className="mt-2 text-sm text-[color:rgb(var(--votuna-ink)/0.7)]">
-            Head back to the homepage and connect with SoundCloud to see your profile.
+            Head back to the homepage and connect with a provider to see your profile.
           </p>
           <Link
             href="/"

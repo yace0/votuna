@@ -11,6 +11,7 @@ import SurfaceCard from '@/components/ui/SurfaceCard'
 import TrackArtwork from './TrackArtwork'
 
 type SearchSuggestSectionProps = {
+  provider: string
   isCollaborative: boolean
   searchQuery: string
   onSearchQueryChange: (value: string) => void
@@ -37,7 +38,24 @@ type SearchSuggestSectionProps = {
   isRecommendationActionPending: boolean
 }
 
+const getProviderLabel = (provider: string) => {
+  const normalized = provider.trim().toLowerCase()
+  if (normalized === 'spotify') return 'Spotify'
+  if (normalized === 'soundcloud') return 'SoundCloud'
+  if (normalized === 'apple') return 'Apple Music'
+  if (normalized === 'tidal') return 'TIDAL'
+  return 'provider'
+}
+
+const getTrackLinkPlaceholder = (provider: string) => {
+  const normalized = provider.trim().toLowerCase()
+  if (normalized === 'spotify') return 'https://open.spotify.com/track/<track-id>'
+  if (normalized === 'soundcloud') return 'https://soundcloud.com/artist/track-name'
+  return 'Paste a track link'
+}
+
 export default function SearchSuggestSection({
+  provider,
   isCollaborative,
   searchQuery,
   onSearchQueryChange,
@@ -63,6 +81,7 @@ export default function SearchSuggestSection({
   onDeclineRecommendation,
   isRecommendationActionPending,
 }: SearchSuggestSectionProps) {
+  const providerLabel = getProviderLabel(provider)
   const isTrackSuggested = (providerTrackId: string) =>
     optimisticSuggestedTrackIds.includes(providerTrackId) ||
     pendingSuggestionTrackIds.includes(providerTrackId)
@@ -75,8 +94,8 @@ export default function SearchSuggestSection({
         <SectionEyebrow>{isCollaborative ? 'Find and suggest tracks' : 'Find and add tracks'}</SectionEyebrow>
         <p className="mt-2 text-sm text-[color:rgb(var(--votuna-ink)/0.7)]">
           {isCollaborative
-            ? 'Search by track name, play the track, and suggest it to the vote queue.'
-            : 'Search by track name, play the track, and add it directly to your playlist.'}
+            ? `Search ${providerLabel} tracks, play the track, and suggest it to the vote queue.`
+            : `Search ${providerLabel} tracks, play the track, and add it directly to your playlist.`}
         </p>
       </div>
 
@@ -91,7 +110,7 @@ export default function SearchSuggestSection({
         <ClearableTextInput
           value={searchQuery}
           onValueChange={onSearchQueryChange}
-          placeholder="Search SoundCloud tracks"
+          placeholder={`Search ${providerLabel} tracks`}
           containerClassName="flex-1"
           clearAriaLabel="Clear track search"
         />
@@ -200,7 +219,7 @@ export default function SearchSuggestSection({
           <ClearableTextInput
             value={linkSuggestionUrl}
             onValueChange={onLinkSuggestionUrlChange}
-            placeholder="https://soundcloud.com/artist/track-name"
+            placeholder={getTrackLinkPlaceholder(provider)}
             containerClassName="flex-1"
             clearAriaLabel="Clear track link"
           />

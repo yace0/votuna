@@ -1,6 +1,7 @@
 import io
 
 from app.auth.dependencies import AUTH_EXPIRED_HEADER
+from app.config.settings import settings
 from app.crud.user import user_crud
 
 
@@ -8,6 +9,16 @@ def test_get_me_unauthorized(client):
     response = client.get("/api/v1/users/me")
     assert response.status_code == 401
     assert response.headers.get(AUTH_EXPIRED_HEADER) == "1"
+    assert response.headers.get("set-cookie") is None
+
+
+def test_get_me_invalid_cookie_clears_auth_cookie(client):
+    client.cookies.set(settings.AUTH_COOKIE_NAME, "invalid-token")
+    response = client.get("/api/v1/users/me")
+    assert response.status_code == 401
+    assert response.headers.get(AUTH_EXPIRED_HEADER) == "1"
+    set_cookie_header = response.headers.get("set-cookie", "")
+    assert settings.AUTH_COOKIE_NAME in set_cookie_header
 
 
 def test_get_me_authorized(auth_client, user):

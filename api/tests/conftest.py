@@ -518,6 +518,7 @@ def votuna_playlist(db_session, user):
 def provider_stub(monkeypatch):
     from app.services.music_providers import session as provider_session
 
+    DummyProvider.provider = "soundcloud"
     DummyProvider.playlists = [
         ProviderPlaylist(
             provider="soundcloud",

@@ -26,12 +26,21 @@ const EMPTY_PROVIDER_PLAYLISTS: ProviderPlaylist[] = []
 const EMPTY_VOTUNA_PLAYLISTS: VotunaPlaylist[] = []
 const EMPTY_PENDING_INVITES: PendingInvite[] = []
 
+const getProviderLabel = (provider: string | null | undefined) => {
+  const normalized = (provider || '').trim().toLowerCase()
+  if (normalized === 'spotify') return 'Spotify'
+  if (normalized === 'soundcloud') return 'SoundCloud'
+  if (normalized === 'apple') return 'Apple Music'
+  if (normalized === 'tidal') return 'TIDAL'
+  return 'Music provider'
+}
+
 /** Landing page hero content. */
 function Landing() {
   const statusItems = [
-    'SoundCloud login',
+    'Spotify and SoundCloud login',
     'Create playlists (public or private)',
-    'Enable existing SoundCloud playlists for voting',
+    'Enable existing provider playlists for voting',
     'Search tracks and suggest by link',
     'Vote counts with voter names in tooltips',
     'Playlist settings and collaborator list',
@@ -43,13 +52,13 @@ function Landing() {
     {
       title: 'Playlist dashboard',
       description:
-        'View SoundCloud playlists, create a new one, or enable an existing one.',
+        'View provider playlists, create a new one, or enable an existing one.',
       detail: 'New playlists support public/private mode.',
     },
     {
       title: 'Search and suggest',
       description:
-        'Search SoundCloud tracks inside a playlist and suggest them without leaving the page.',
+        'Search provider tracks inside a playlist and suggest them without leaving the page.',
       detail: 'Direct track URL suggestions are also supported.',
     },
     {
@@ -82,7 +91,7 @@ function Landing() {
   ]
 
   const workflowSteps = [
-    'Log in with SoundCloud.',
+    'Log in with Spotify or SoundCloud.',
     'Create or enable a playlist on your dashboard.',
     'Invite people to suggest tracks and vote.',
     'Use the Manage tab to import/export tracks with preview before execution.',
@@ -92,7 +101,6 @@ function Landing() {
     {
       title: 'More music providers',
       items: [
-        'Spotify login and playlist import',
         'Apple Music login and playlist import',
         'TIDAL login and playlist import',
         'Cross-provider playlist links and metadata sync',
@@ -127,14 +135,14 @@ function Landing() {
             Alpha
           </div>
           <h1 className="text-5xl font-semibold tracking-tight text-[rgb(var(--votuna-ink))] sm:text-6xl">
-            Open source playlist voting for SoundCloud.
+            Open source playlist voting for Spotify and SoundCloud.
           </h1>
           <p className="text-lg text-[color:rgb(var(--votuna-ink)/0.7)] sm:text-xl">
             Votuna helps groups suggest tracks, vote together, and manage what gets added next.
           </p>
           <p className="text-sm text-[color:rgb(var(--votuna-ink)/0.6)]">
             Use <span className="font-semibold">Log in</span> in the top-right to connect
-            SoundCloud and start.
+            your provider and start.
           </p>
           <div className="flex flex-wrap gap-3 text-sm text-[color:rgb(var(--votuna-ink)/0.55)]">
             <span className="rounded-full border border-[color:rgb(var(--votuna-ink)/0.1)] bg-[rgba(var(--votuna-paper),0.7)] px-4 py-2">
@@ -144,7 +152,7 @@ function Landing() {
               Next.js frontend
             </span>
             <span className="rounded-full border border-[color:rgb(var(--votuna-ink)/0.1)] bg-[rgba(var(--votuna-paper),0.7)] px-4 py-2">
-              SoundCloud now, more providers later
+              Spotify and SoundCloud support
             </span>
           </div>
         </div>
@@ -276,12 +284,14 @@ export default function Home() {
 
   const userQuery = useCurrentUser()
   const user = userQuery.data ?? null
+  const activeProvider = useMemo(() => (user?.auth_provider || 'soundcloud').toLowerCase(), [user?.auth_provider])
+  const activeProviderLabel = useMemo(() => getProviderLabel(activeProvider), [activeProvider])
 
   const providerQuery = useQuery({
-    queryKey: queryKeys.providerPlaylistsByProvider('soundcloud'),
+    queryKey: queryKeys.providerPlaylistsByProvider(activeProvider),
     queryFn: () =>
-      apiJson<ProviderPlaylist[]>('/api/v1/playlists/providers/soundcloud', { authRequired: true }),
-    enabled: !!user?.id,
+      apiJson<ProviderPlaylist[]>(`/api/v1/playlists/providers/${activeProvider}`, { authRequired: true }),
+    enabled: !!user?.id && !!activeProvider,
     refetchInterval: 30_000,
     staleTime: 10_000,
   })
@@ -336,7 +346,7 @@ export default function Home() {
         headers: { 'Content-Type': 'application/json' },
         authRequired: true,
         body: JSON.stringify({
-          provider: 'soundcloud',
+          provider: activeProvider,
           title: newPlaylistTitle.trim(),
           is_public: newPlaylistIsPublic,
         }),
@@ -486,7 +496,7 @@ export default function Home() {
                 New Votuna playlist
               </p>
               <p className="mt-2 text-sm text-[color:rgb(var(--votuna-ink)/0.7)]">
-                Create a SoundCloud playlist and enable voting immediately.
+                Create a {activeProviderLabel} playlist and enable voting immediately.
               </p>
             </div>
             <div className="flex w-full max-w-md flex-wrap items-center gap-3">

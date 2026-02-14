@@ -253,6 +253,31 @@ def test_candidates_provider_fallback_when_local_empty(auth_client, votuna_playl
     assert provider_stub.search_users_calls == 1
 
 
+def test_candidates_provider_fallback_spotify_profile_url(auth_client, db_session, votuna_playlist, provider_stub):
+    votuna_playlist.provider = "spotify"
+    db_session.add(votuna_playlist)
+    db_session.commit()
+
+    provider_stub.search_users_results = [
+        ProviderUser(
+            provider_user_id="spotify-user-22",
+            username="spotify-user-22",
+            display_name="Spotify User",
+            avatar_url=None,
+            profile_url=None,
+        )
+    ]
+    response = auth_client.get(
+        f"/api/v1/votuna/playlists/{votuna_playlist.id}/invites/candidates",
+        params={"q": "spotify-user", "limit": 10},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) == 1
+    assert data[0]["source"] == "provider"
+    assert data[0]["profile_url"] == "https://open.spotify.com/user/spotify-user-22"
+
+
 def test_create_user_invite_unknown_provider_user_rejects(auth_client, votuna_playlist, provider_stub):
     response = auth_client.post(
         f"/api/v1/votuna/playlists/{votuna_playlist.id}/invites",
@@ -548,6 +573,35 @@ def test_open_invite_redirects_to_login_when_unauthenticated(client, db_session,
     assert response.status_code in {302, 307}
     location = response.headers["location"]
     assert "/api/v1/auth/login/soundcloud" in location
+    assert "invite_token=" in location
+
+
+def test_open_invite_redirects_to_spotify_login_when_playlist_provider_is_spotify(
+    client,
+    db_session,
+    votuna_playlist,
+):
+    votuna_playlist.provider = "spotify"
+    db_session.add(votuna_playlist)
+    db_session.commit()
+
+    invite = votuna_playlist_invite_crud.create(
+        db_session,
+        {
+            "playlist_id": votuna_playlist.id,
+            "invite_type": "link",
+            "token": f"invite-token-{uuid.uuid4().hex}",
+            "expires_at": datetime.now(timezone.utc) + timedelta(hours=1),
+            "max_uses": 1,
+            "uses_count": 0,
+            "is_revoked": False,
+            "created_by_user_id": votuna_playlist.owner_user_id,
+        },
+    )
+    response = client.get(f"/api/v1/votuna/invites/{invite.token}/open", follow_redirects=False)
+    assert response.status_code in {302, 307}
+    location = response.headers["location"]
+    assert "/api/v1/auth/login/spotify" in location
     assert "invite_token=" in location
 
 

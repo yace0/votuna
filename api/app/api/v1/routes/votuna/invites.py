@@ -61,6 +61,8 @@ def _build_candidate_profile_url(
         if handle:
             return f"https://soundcloud.com/{quote(handle, safe='')}"
         return f"https://soundcloud.com/users/{quote(user_id, safe='')}"
+    if provider == "spotify":
+        return f"https://open.spotify.com/user/{quote(user_id, safe='')}"
     return None
 
 
@@ -143,7 +145,7 @@ async def list_invite_candidates(
     try:
         provider_users = await client.search_users(q, limit=limit)
     except ProviderAuthError:
-        raise_provider_auth(current_user, owner_id=playlist.owner_user_id)
+        raise_provider_auth(current_user, owner_id=playlist.owner_user_id, provider=playlist.provider)
         raise AssertionError("unreachable")
     except ProviderAPIError as exc:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
@@ -381,7 +383,7 @@ async def create_invite(
         try:
             provider_user = await client.get_user(target_provider_user_id)
         except ProviderAuthError:
-            raise_provider_auth(current_user, owner_id=playlist.owner_user_id)
+            raise_provider_auth(current_user, owner_id=playlist.owner_user_id, provider=playlist.provider)
             raise AssertionError("unreachable")
         except ProviderAPIError as exc:
             if exc.status_code == 404:

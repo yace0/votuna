@@ -127,7 +127,7 @@ export default function MergingBulkEditingSection({ management }: MergingBulkEdi
                         onValueChange={playlists.otherPlaylist.search.setInput}
                         containerClassName="flex-1"
                         className="rounded-2xl border border-[color:rgb(var(--votuna-ink)/0.12)] bg-[rgba(var(--votuna-paper),0.9)] px-4 py-2 text-sm"
-                        placeholder="Search playlists or paste a SoundCloud playlist link"
+                        placeholder="Search playlists or paste a playlist link"
                         clearAriaLabel="Clear playlist search"
                       />
                       <button
@@ -142,7 +142,7 @@ export default function MergingBulkEditingSection({ management }: MergingBulkEdi
                       </button>
                     </form>
                     <p className="text-xs text-[color:rgb(var(--votuna-ink)/0.58)]">
-                      Enter playlist text to search, or paste a SoundCloud playlist URL.
+                      Enter playlist text to search, or paste a playlist URL.
                     </p>
                     {playlists.otherPlaylist.search.status ? (
                       <p className="text-xs text-rose-500">{playlists.otherPlaylist.search.status}</p>

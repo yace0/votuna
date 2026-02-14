@@ -182,6 +182,7 @@ export default function PlaylistDetailPage() {
               </SurfaceCard>
             ) : null}
             <SearchSuggestSection
+              provider={state.playlist.provider}
               isCollaborative={state.isCollaborative}
               searchQuery={state.searchQuery}
               onSearchQueryChange={state.setSearchQuery}
@@ -225,6 +226,7 @@ export default function PlaylistDetailPage() {
             ) : null}
 
             <TracksSection
+              provider={state.playlist.provider}
               tracks={state.tracks}
               isLoading={state.isTracksLoading}
               onPlayTrack={state.playTrack}

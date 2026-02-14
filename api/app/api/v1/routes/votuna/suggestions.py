@@ -301,7 +301,7 @@ async def search_tracks_for_suggestions(
     try:
         results = await client.search_tracks(query, limit=limit)
     except ProviderAuthError:
-        raise_provider_auth(current_user, owner_id=playlist.owner_user_id)
+        raise_provider_auth(current_user, owner_id=playlist.owner_user_id, provider=playlist.provider)
     except ProviderAPIError as exc:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
     return [
@@ -329,11 +329,14 @@ async def list_recommended_tracks(
     """List personalized track recommendations based on current playlist tracks."""
     playlist = get_playlist_or_404(db, playlist_id)
     require_member(db, playlist_id, current_user.id)
+    if playlist.provider == "spotify":
+        # Spotify recommendations endpoint is deprecated. Keep this stable until phase 2.
+        return []
     client = get_owner_client(db, playlist)
     try:
         current_tracks = list(await client.list_tracks(playlist.provider_playlist_id))
     except ProviderAuthError:
-        raise_provider_auth(current_user, owner_id=playlist.owner_user_id)
+        raise_provider_auth(current_user, owner_id=playlist.owner_user_id, provider=playlist.provider)
     except ProviderAPIError as exc:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
 
@@ -370,7 +373,7 @@ async def list_recommended_tracks(
                 offset=0,
             )
         except ProviderAuthError:
-            raise_provider_auth(current_user, owner_id=playlist.owner_user_id)
+            raise_provider_auth(current_user, owner_id=playlist.owner_user_id, provider=playlist.provider)
         except ProviderAPIError as exc:
             if exc.status_code in {400, 404}:
                 continue
@@ -489,7 +492,7 @@ async def create_suggestion(
         try:
             resolved_track = await client.resolve_track_url(track_url)
         except ProviderAuthError:
-            raise_provider_auth(current_user, owner_id=playlist.owner_user_id)
+            raise_provider_auth(current_user, owner_id=playlist.owner_user_id, provider=playlist.provider)
         except ProviderAPIError as exc:
             if exc.status_code in {400, 404}:
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
@@ -508,7 +511,7 @@ async def create_suggestion(
                 detail="Track already exists in playlist",
             )
     except ProviderAuthError:
-        raise_provider_auth(current_user, owner_id=playlist.owner_user_id)
+        raise_provider_auth(current_user, owner_id=playlist.owner_user_id, provider=playlist.provider)
     except ProviderAPIError:
         # If the provider check fails, proceed with the suggestion to avoid blocking.
         pass
@@ -530,7 +533,7 @@ async def create_suggestion(
                 actor_user_id=current_user.id,
             )
         except ProviderAuthError:
-            raise_provider_auth(current_user, owner_id=playlist.owner_user_id)
+            raise_provider_auth(current_user, owner_id=playlist.owner_user_id, provider=playlist.provider)
         except ProviderAPIError as exc:
             raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
         return _serialize_suggestion(db, playlist, existing, current_user.id)
@@ -566,7 +569,7 @@ async def create_suggestion(
             actor_user_id=current_user.id,
         )
     except ProviderAuthError:
-        raise_provider_auth(current_user, owner_id=playlist.owner_user_id)
+        raise_provider_auth(current_user, owner_id=playlist.owner_user_id, provider=playlist.provider)
     except ProviderAPIError as exc:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
     return _serialize_suggestion(db, playlist, suggestion, current_user.id)
@@ -610,7 +613,7 @@ async def set_suggestion_reaction(
             actor_user_id=current_user.id,
         )
     except ProviderAuthError:
-        raise_provider_auth(current_user, owner_id=playlist.owner_user_id)
+        raise_provider_auth(current_user, owner_id=playlist.owner_user_id, provider=playlist.provider)
     except ProviderAPIError as exc:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
     return _serialize_suggestion(db, playlist, suggestion, current_user.id)
@@ -679,7 +682,7 @@ async def force_add_suggestion(
             resolved_by_user_id=current_user.id,
         )
     except ProviderAuthError:
-        raise_provider_auth(current_user, owner_id=playlist.owner_user_id)
+        raise_provider_auth(current_user, owner_id=playlist.owner_user_id, provider=playlist.provider)
     except ProviderAPIError as exc:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
     return _serialize_suggestion(db, playlist, suggestion, current_user.id)

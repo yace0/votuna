@@ -57,7 +57,14 @@ export default function Navbar() {
 
   /** Start the SoundCloud OAuth flow. */
   const handleSoundcloudLogin = () => {
-    window.location.href = `${API_URL}/api/v1/auth/login/soundcloud`
+    const next = `${window.location.pathname}${window.location.search}${window.location.hash}`
+    window.location.href = `${API_URL}/api/v1/auth/login/soundcloud?next=${encodeURIComponent(next)}`
+  }
+
+  /** Start the Spotify OAuth flow. */
+  const handleSpotifyLogin = () => {
+    const next = `${window.location.pathname}${window.location.search}${window.location.hash}`
+    window.location.href = `${API_URL}/api/v1/auth/login/spotify?next=${encodeURIComponent(next)}`
   }
 
   /** Clear the auth cookie and local session state. */
@@ -180,7 +187,7 @@ export default function Navbar() {
                 Pick a provider
               </h2>
               <p className="mt-2 text-sm text-[color:rgb(var(--votuna-ink)/0.7)]">
-                Spotify is coming soon. SoundCloud is ready when you are.
+                Connect a provider to continue.
               </p>
             </div>
             <button
@@ -193,10 +200,10 @@ export default function Navbar() {
 
           <div className="mt-6 space-y-3">
             <Button
-              disabled
-              className="w-full justify-center rounded-2xl border border-slate-200 bg-slate-100 text-slate-400"
+              onClick={handleSpotifyLogin}
+              className="w-full justify-center rounded-2xl border border-[color:rgb(var(--votuna-ink)/0.14)] bg-[rgba(var(--votuna-paper),0.95)] text-[rgb(var(--votuna-ink))] hover:bg-[rgba(var(--votuna-paper),0.85)]"
             >
-              Spotify (soon)
+              Continue with Spotify
             </Button>
             <Button
               onClick={handleSoundcloudLogin}

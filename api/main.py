@@ -91,13 +91,20 @@ async def log_non_success_responses(request: Request, call_next):
 @app.middleware("http")
 async def clear_auth_cookie_on_unauthorized(request, call_next):
     """Clear auth cookie only when JWT/session auth has actually expired."""
+    cookie_name = settings.AUTH_COOKIE_NAME
+    had_auth_cookie = request.cookies.get(cookie_name) is not None
+    auth_header = request.headers.get("Authorization", "")
+    had_bearer_header = auth_header.lower().startswith("bearer ")
+
     response = await call_next(request)
     should_clear_cookie = (
-        response.status_code == status.HTTP_401_UNAUTHORIZED and response.headers.get(AUTH_EXPIRED_HEADER) == "1"
+        response.status_code == status.HTTP_401_UNAUTHORIZED
+        and response.headers.get(AUTH_EXPIRED_HEADER) == "1"
+        and (had_auth_cookie or had_bearer_header)
     )
     if should_clear_cookie:
         response.delete_cookie(
-            settings.AUTH_COOKIE_NAME,
+            cookie_name,
             path="/",
             httponly=True,
             secure=settings.AUTH_COOKIE_SECURE,

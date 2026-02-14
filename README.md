@@ -2,18 +2,18 @@
 
 Votuna is an open source collaborative playlist voting app.
 
-It currently supports SoundCloud-based playlist workflows end-to-end (auth, playlist enablement, suggestions, voting, and profile management) with a FastAPI backend and Next.js frontend.
+It currently supports Spotify and SoundCloud playlist workflows end-to-end (auth, playlist enablement, suggestions, voting, and profile management) with a FastAPI backend and Next.js frontend.
 
 ## Current Feature Status
 
 ### Implemented
-- SoundCloud OAuth login with cookie-based sessions
+- Spotify and SoundCloud OAuth login with cookie-based sessions
 - Dashboard to:
   - List provider playlists
-  - Create a new SoundCloud playlist (public/private)
-  - Enable existing SoundCloud playlists for Votuna
+  - Create a new provider playlist (public/private)
+  - Enable existing provider playlists for Votuna
 - Playlist detail experience:
-  - Search SoundCloud tracks from within the playlist page
+  - Search provider tracks from within the playlist page
   - Suggest tracks from search results or by pasting a track URL
   - Vote on suggestions with voter display names in tooltip
   - Play tracks in a persistent "Now Playing" dock
@@ -34,7 +34,6 @@ It currently supports SoundCloud-based playlist workflows end-to-end (auth, play
 
 ### Planned / In Progress
 - More music providers:
-  - Spotify login and playlist import
   - Apple Music login and playlist import
   - TIDAL login and playlist import
   - Cross-provider playlist links and metadata sync
@@ -82,10 +81,10 @@ Copy-Item .env.example .env
 ### 2. Configure required values in `.env`
 
 At minimum set:
-- `SOUNDCLOUD_CLIENT_ID`
-- `SOUNDCLOUD_CLIENT_SECRET`
-- `SOUNDCLOUD_REDIRECT_URI` (default is fine for local)
 - `AUTH_SECRET_KEY` (replace `change-me`)
+- One provider OAuth set (or both):
+  - `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET`, `SPOTIFY_REDIRECT_URI`
+  - `SOUNDCLOUD_CLIENT_ID`, `SOUNDCLOUD_CLIENT_SECRET`, `SOUNDCLOUD_REDIRECT_URI`
 
 Optional but common:
 - `NEXT_PUBLIC_API_URL` (default `http://localhost:8000`)
@@ -189,6 +188,9 @@ Set these in Railway for the `api` service:
 - `AUTH_COOKIE_SAMESITE=lax` (or `none` for true cross-site deployments)
 - `FRONTEND_URL=https://<frontend-domain>.up.railway.app`
 - `ALLOWED_ORIGINS=["https://<frontend-domain>.up.railway.app"]`
+- `SPOTIFY_CLIENT_ID=<spotify-client-id>`
+- `SPOTIFY_CLIENT_SECRET=<spotify-client-secret>`
+- `SPOTIFY_REDIRECT_URI=https://<api-domain>.up.railway.app/api/v1/auth/callback/spotify`
 - `SOUNDCLOUD_CLIENT_ID=<soundcloud-client-id>`
 - `SOUNDCLOUD_CLIENT_SECRET=<soundcloud-client-secret>`
 - `SOUNDCLOUD_REDIRECT_URI=https://<api-domain>.up.railway.app/api/v1/auth/callback/soundcloud`
@@ -217,9 +219,11 @@ This keeps uploaded avatar files across deploys.
 2. Set `NEXT_PUBLIC_API_URL` in `frontend` to the API domain.
 3. Deploy `frontend` and generate its public domain.
 4. Update API `FRONTEND_URL` and `ALLOWED_ORIGINS` with the frontend domain and redeploy `api`.
+5. In Spotify developer settings, set callback URL to:
+   - `<url>/api/v1/auth/callback/spotify`
 5. In SoundCloud developer settings, set callback URL to:
-   - `https://<api-domain>.up.railway.app/api/v1/auth/callback/soundcloud`
-6. Ensure `SOUNDCLOUD_REDIRECT_URI` matches exactly, then redeploy `api`.
+   - `<url>/api/v1/auth/callback/soundcloud`
+6. Ensure `SPOTIFY_REDIRECT_URI` and `SOUNDCLOUD_REDIRECT_URI` match exactly, then redeploy `api`.
 7. After bootstrap, use GitHub Releases for production deploys:
    - Publish a non-prerelease GitHub Release.
    - GitHub Actions runs quality checks, then deploys both Railway services.
@@ -228,7 +232,7 @@ This keeps uploaded avatar files across deploys.
 
 - API health: `GET /health` returns healthy.
 - Frontend loads and can fetch authenticated user state.
-- SoundCloud login redirects back to app and sets auth cookie.
+- Spotify/SoundCloud login redirects back to app and sets auth cookie.
 - Playlist listing/details load.
 - Suggest/add/vote flows work.
 - Upload avatar, redeploy API, verify avatar still exists.
@@ -279,4 +283,4 @@ docker compose --profile test up --build api_tests
 
 - Root `.env` is used by both Docker Compose and backend settings loading.
 - In local development, ensure `ALLOWED_ORIGINS` includes your frontend host.
-- SoundCloud is the active provider today; Spotify, Apple Music, and TIDAL are planned.
+- Spotify and SoundCloud are active providers today; Apple Music and TIDAL are planned.
